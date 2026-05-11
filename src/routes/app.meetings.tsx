@@ -45,7 +45,7 @@ function MeetingsPage() {
     setSummarizing(m.id);
     try {
       const { data, error } = await supabase.functions.invoke("ai-chat", {
-        body: { messages: [{ role: "user", content: `Résume professionnellement cette réunion en français avec points clés et actions :\n\nTitre : ${m.title}\nParticipants : ${m.participants.join(", ")}\nNotes :\n${m.notes ?? ""}` }] },
+        body: { messages: [{ role: "user", content: `Résume professionnellement cette réunion en français avec points clés et actions :\n\nTitre : ${m.title}\nParticipants : ${(m.participants ?? []).join(", ")}\nNotes :\n${m.notes ?? ""}` }] },
       });
       if (error) throw error;
       await supabase.from("meetings").update({ summary: data.reply }).eq("id", m.id);
@@ -91,7 +91,7 @@ function MeetingsPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="font-semibold">{m.title}</div>
-                    <div className="mt-1 text-xs text-muted-foreground">{m.participants.length} participant(s) · {m.participants.join(", ")}</div>
+                    <div className="mt-1 text-xs text-muted-foreground">{(m.participants ?? []).length} participant(s) · {(m.participants ?? []).join(", ")}</div>
                   </div>
                   <Button size="sm" variant="outline" onClick={() => summarize(m)} disabled={summarizing === m.id}>
                     {summarizing === m.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1.5 h-3.5 w-3.5" />}
