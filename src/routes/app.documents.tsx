@@ -149,7 +149,7 @@ function DocsPage() {
           <Button variant="outline" size="sm" onClick={() => exportList("csv")}><FileDown className="mr-1 h-4 w-4" />CSV</Button>
           <Button variant="outline" size="sm" onClick={() => exportList("pdf")}><FileDown className="mr-1 h-4 w-4" />PDF</Button>
           <Button variant="outline" size="sm" onClick={createFolder}><FolderPlus className="mr-1 h-4 w-4" />Dossier</Button>
-          <Button variant="outline" size="sm" onClick={createTextDoc}><FilePlus className="mr-1 h-4 w-4" />Document texte</Button>
+          <Button variant="outline" size="sm" onClick={createTextDoc}><StickyNote className="mr-1 h-4 w-4" />Note</Button>
           <Button size="sm" onClick={() => fileRef.current?.click()} disabled={uploading}>
             <Upload className="mr-1 h-4 w-4" />{uploading ? "…" : "Téléverser"}
           </Button>
