@@ -86,7 +86,7 @@ function Dashboard() {
       [field]: value,
       updated_by: user.id,
     };
-    const { data, error } = await supabase.from("exchange_rates").upsert(payload, { onConflict: "rate_date" }).select().single();
+    const { data, error } = await supabase.from("exchange_rates").upsert([payload], { onConflict: "rate_date" }).select().single();
     if (error) { toast.error(error.message); return; }
     setRate(data as Rate);
     toast.success("Taux enregistré");
