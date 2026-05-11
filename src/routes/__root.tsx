@@ -10,6 +10,7 @@ import {
 
 import { Toaster } from "sonner";
 
+import "@/lib/server-fn-auth.client";
 import appCss from "../styles.css?url";
 
 function NotFoundComponent() {
