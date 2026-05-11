@@ -93,7 +93,7 @@ function NoteEditorPage() {
       TextAlign.configure({ types: ["heading", "paragraph"] }),
     ],
     content: "",
-    editorProps: { attributes: { class: "prose prose-sm dark:prose-invert max-w-none min-h-[60vh] focus:outline-none p-4" } },
+    editorProps: { attributes: { class: "prose prose-sm sm:prose-base dark:prose-invert max-w-none min-h-[70vh] focus:outline-none px-6 py-8 sm:px-12" } },
     onUpdate: () => scheduleSave(),
   });
 
