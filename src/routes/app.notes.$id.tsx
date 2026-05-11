@@ -1,36 +1,10 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEditor, EditorContent, Extension } from "@tiptap/react";
+import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Underline from "@tiptap/extension-underline";
 import TextAlign from "@tiptap/extension-text-align";
-import TextStyle from "@tiptap/extension-text-style";
+import { TextStyle, FontSize } from "@tiptap/extension-text-style";
 import FontFamily from "@tiptap/extension-font-family";
-
-const FontSize = Extension.create({
-  name: "fontSize",
-  addOptions() { return { types: ["textStyle"] }; },
-  addGlobalAttributes() {
-    return [{
-      types: this.options.types,
-      attributes: {
-        fontSize: {
-          default: null,
-          parseHTML: (el: HTMLElement) => el.style.fontSize || null,
-          renderHTML: (attrs: { fontSize?: string }) =>
-            attrs.fontSize ? { style: `font-size: ${attrs.fontSize}` } : {},
-        },
-      },
-    }];
-  },
-  addCommands() {
-    return {
-      setFontSize: (size: string) => ({ chain }: any) =>
-        chain().setMark("textStyle", { fontSize: size }).run(),
-      unsetFontSize: () => ({ chain }: any) =>
-        chain().setMark("textStyle", { fontSize: null }).removeEmptyTextStyle().run(),
-    } as any;
-  },
-});
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
