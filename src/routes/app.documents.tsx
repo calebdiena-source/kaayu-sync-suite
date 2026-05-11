@@ -13,7 +13,7 @@ export const Route = createFileRoute("/app/documents")({
   component: DocsPage,
 });
 
-type Doc = { id: string; name: string; storage_path: string; mime_type: string | null; size_bytes: number | null; created_at: string; folder_id: string | null };
+type Doc = { id: string; name: string; storage_path: string; mime_type: string | null; size_bytes: number | null; created_at: string; folder_id: string | null; user_id: string };
 type Folder = { id: string; name: string };
 
 function DocsPage() {
