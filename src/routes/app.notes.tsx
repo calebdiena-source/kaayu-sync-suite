@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Save, Download, Bold, Italic, List, ListOrdered, Heading1, Heading2, Undo, Redo, NotebookPen } from "lucide-react";
 import { toast } from "sonner";
 import { exportTextToPDF } from "@/lib/exports";
-import HTMLtoDOCX from "html-to-docx-buffer";
+import { Document, Packer, Paragraph, HeadingLevel, TextRun } from "docx";
 
 export const Route = createFileRoute("/app/notes")({
   head: () => ({ meta: [{ title: "Prise de notes — Kaayu" }] }),
