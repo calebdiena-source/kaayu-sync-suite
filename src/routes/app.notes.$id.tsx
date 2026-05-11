@@ -11,7 +11,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  ArrowLeft, Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Heading1, Heading2,
+  ArrowLeft, Bold, Italic, Underline as UnderlineIcon, List, ListOrdered,
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
   Undo, Redo, Trash2, Download, Pin, Cloud, CloudOff, Loader2,
 } from "lucide-react";
