@@ -84,7 +84,14 @@ function NoteEditorPage() {
   const lastSavedRef = useRef<{ title: string; content: string } | null>(null);
 
   const editor = useEditor({
-    extensions: [StarterKit],
+    extensions: [
+      StarterKit,
+      Underline,
+      TextStyle,
+      FontSize,
+      FontFamily,
+      TextAlign.configure({ types: ["heading", "paragraph"] }),
+    ],
     content: "",
     editorProps: { attributes: { class: "prose prose-sm dark:prose-invert max-w-none min-h-[60vh] focus:outline-none p-4" } },
     onUpdate: () => scheduleSave(),
