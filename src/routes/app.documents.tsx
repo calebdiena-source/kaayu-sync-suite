@@ -2,11 +2,30 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { Upload, FileText, Search, Trash2, Download, Folder, FolderPlus, FilePlus, FileDown, Share2, Users } from "lucide-react";
+import { Upload, FileText, Search, Trash2, Download, Folder, FolderPlus, StickyNote, FileDown, Share2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { exportRowsToCSV, exportRowsToPDF } from "@/lib/exports";
 import { ShareDocumentDialog } from "@/components/share-document-dialog";
+import { Document, Packer, Paragraph, HeadingLevel, TextRun } from "docx";
+
+const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+async function buildInitialDocxBlob(title: string, rates: { rate_date: string; usd_to_fc: number | null; eur_to_usd: number | null; chf_to_usd: number | null } | null): Promise<Blob> {
+  const children: Paragraph[] = [
+    new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: title, bold: true })] }),
+  ];
+  if (rates) {
+    children.push(new Paragraph({ heading: HeadingLevel.HEADING_3, children: [new TextRun({ text: `Taux de change — ${rates.rate_date}`, bold: true })] }));
+    children.push(new Paragraph({ children: [new TextRun(`USD → FC : ${rates.usd_to_fc ?? "—"}`)] }));
+    children.push(new Paragraph({ children: [new TextRun(`EUR → USD : ${rates.eur_to_usd ?? "—"}`)] }));
+    children.push(new Paragraph({ children: [new TextRun(`CHF → USD : ${rates.chf_to_usd ?? "—"}`)] }));
+    children.push(new Paragraph({ children: [] }));
+  }
+  children.push(new Paragraph({ children: [new TextRun("")] }));
+  const doc = new Document({ sections: [{ children }] });
+  return await Packer.toBlob(doc);
+}
 
 export const Route = createFileRoute("/app/documents")({
   head: () => ({ meta: [{ title: "Documents — Kaayu" }] }),
