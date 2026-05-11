@@ -78,15 +78,15 @@ function Dashboard() {
 
   const saveField = async (field: "usd_to_fc" | "eur_to_usd" | "chf_to_usd", value: number) => {
     if (!user || !rate) return;
+    const next = { ...rate, [field]: value } as Rate;
     const payload = {
       rate_date: today(),
-      usd_to_fc: rate.usd_to_fc ?? null,
-      eur_to_usd: rate.eur_to_usd ?? null,
-      chf_to_usd: rate.chf_to_usd ?? null,
-      [field]: value,
+      usd_to_fc: next.usd_to_fc,
+      eur_to_usd: next.eur_to_usd,
+      chf_to_usd: next.chf_to_usd,
       updated_by: user.id,
     };
-    const { data, error } = await supabase.from("exchange_rates").upsert([payload], { onConflict: "rate_date" }).select().single();
+    const { data, error } = await supabase.from("exchange_rates").upsert(payload, { onConflict: "rate_date" }).select().single();
     if (error) { toast.error(error.message); return; }
     setRate(data as Rate);
     toast.success("Taux enregistré");
