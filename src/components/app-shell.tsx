@@ -1,6 +1,6 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import {
-  LayoutDashboard, FolderOpen, Users2, CalendarDays, ListTodo, NotebookPen,
+  LayoutDashboard, FolderOpen, Users2, CalendarDays, ListTodo,
   Settings, LogOut, Sparkles, ScanLine, Cloud, Menu, X, Sun, Moon
 } from "lucide-react";
 import { NotificationsPopover } from "@/components/notifications-popover";
