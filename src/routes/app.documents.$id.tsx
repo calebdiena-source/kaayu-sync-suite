@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { ShareDocumentDialog } from "@/components/share-document-dialog";
 import { exportTextToPDF } from "@/lib/exports";
 import mammoth from "mammoth/mammoth.browser";
-import HTMLtoDOCX from "html-to-docx-buffer";
+import { Document, Packer, Paragraph, HeadingLevel, TextRun } from "docx";
 
 export const Route = createFileRoute("/app/documents/$id")({
   head: () => ({ meta: [{ title: "Document — Kaayu" }] }),
