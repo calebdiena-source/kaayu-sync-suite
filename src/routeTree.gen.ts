@@ -14,6 +14,7 @@ import { Route as AppRouteImport } from './routes/app'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as AppTasksRouteImport } from './routes/app.tasks'
+import { Route as AppOcrRouteImport } from './routes/app.ocr'
 import { Route as AppMeetingsRouteImport } from './routes/app.meetings'
 import { Route as AppDocumentsRouteImport } from './routes/app.documents'
 import { Route as AppCalendarRouteImport } from './routes/app.calendar'
@@ -43,6 +44,11 @@ const AppTasksRoute = AppTasksRouteImport.update({
   path: '/tasks',
   getParentRoute: () => AppRoute,
 } as any)
+const AppOcrRoute = AppOcrRouteImport.update({
+  id: '/ocr',
+  path: '/ocr',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppMeetingsRoute = AppMeetingsRouteImport.update({
   id: '/meetings',
   path: '/meetings',
@@ -66,6 +72,7 @@ export interface FileRoutesByFullPath {
   '/app/calendar': typeof AppCalendarRoute
   '/app/documents': typeof AppDocumentsRoute
   '/app/meetings': typeof AppMeetingsRoute
+  '/app/ocr': typeof AppOcrRoute
   '/app/tasks': typeof AppTasksRoute
   '/app/': typeof AppIndexRoute
 }
@@ -75,6 +82,7 @@ export interface FileRoutesByTo {
   '/app/calendar': typeof AppCalendarRoute
   '/app/documents': typeof AppDocumentsRoute
   '/app/meetings': typeof AppMeetingsRoute
+  '/app/ocr': typeof AppOcrRoute
   '/app/tasks': typeof AppTasksRoute
   '/app': typeof AppIndexRoute
 }
@@ -86,6 +94,7 @@ export interface FileRoutesById {
   '/app/calendar': typeof AppCalendarRoute
   '/app/documents': typeof AppDocumentsRoute
   '/app/meetings': typeof AppMeetingsRoute
+  '/app/ocr': typeof AppOcrRoute
   '/app/tasks': typeof AppTasksRoute
   '/app/': typeof AppIndexRoute
 }
@@ -98,6 +107,7 @@ export interface FileRouteTypes {
     | '/app/calendar'
     | '/app/documents'
     | '/app/meetings'
+    | '/app/ocr'
     | '/app/tasks'
     | '/app/'
   fileRoutesByTo: FileRoutesByTo
@@ -107,6 +117,7 @@ export interface FileRouteTypes {
     | '/app/calendar'
     | '/app/documents'
     | '/app/meetings'
+    | '/app/ocr'
     | '/app/tasks'
     | '/app'
   id:
@@ -117,6 +128,7 @@ export interface FileRouteTypes {
     | '/app/calendar'
     | '/app/documents'
     | '/app/meetings'
+    | '/app/ocr'
     | '/app/tasks'
     | '/app/'
   fileRoutesById: FileRoutesById
@@ -164,6 +176,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTasksRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/ocr': {
+      id: '/app/ocr'
+      path: '/ocr'
+      fullPath: '/app/ocr'
+      preLoaderRoute: typeof AppOcrRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/meetings': {
       id: '/app/meetings'
       path: '/meetings'
@@ -192,6 +211,7 @@ interface AppRouteChildren {
   AppCalendarRoute: typeof AppCalendarRoute
   AppDocumentsRoute: typeof AppDocumentsRoute
   AppMeetingsRoute: typeof AppMeetingsRoute
+  AppOcrRoute: typeof AppOcrRoute
   AppTasksRoute: typeof AppTasksRoute
   AppIndexRoute: typeof AppIndexRoute
 }
@@ -200,6 +220,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppCalendarRoute: AppCalendarRoute,
   AppDocumentsRoute: AppDocumentsRoute,
   AppMeetingsRoute: AppMeetingsRoute,
+  AppOcrRoute: AppOcrRoute,
   AppTasksRoute: AppTasksRoute,
   AppIndexRoute: AppIndexRoute,
 }
