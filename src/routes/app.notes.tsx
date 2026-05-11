@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Save, Download, Bold, Italic, List, ListOrdered, Heading1, Heading2, Undo, Redo, NotebookPen } from "lucide-react";
 import { toast } from "sonner";
 import { exportTextToPDF } from "@/lib/exports";
-import HTMLtoDOCX from "html-to-docx-buffer";
+import { Document, Packer, Paragraph, HeadingLevel, TextRun } from "docx";
 
 export const Route = createFileRoute("/app/notes")({
   head: () => ({ meta: [{ title: "Prise de notes — Kaayu" }] }),
@@ -19,9 +19,61 @@ export const Route = createFileRoute("/app/notes")({
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
 async function htmlToDocxBlob(title: string, html: string): Promise<Blob> {
-  const wrapped = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title></head><body>${html}</body></html>`;
-  const result: any = await HTMLtoDOCX(wrapped, null, { table: { row: { cantSplit: true } } });
-  return result instanceof Blob ? result : new Blob([result], { type: DOCX_MIME });
+  // Parse HTML in the browser and map basic block-level elements to docx paragraphs.
+  const container = document.createElement("div");
+  container.innerHTML = html;
+
+  const paragraphs: Paragraph[] = [
+    new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: title, bold: true })] }),
+  ];
+
+  const walk = (node: Node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = (node.textContent ?? "").trim();
+      if (text) paragraphs.push(new Paragraph({ children: [new TextRun(text)] }));
+      return;
+    }
+    if (!(node instanceof HTMLElement)) return;
+    const tag = node.tagName.toLowerCase();
+    const text = node.textContent ?? "";
+    if (!text.trim() && tag !== "br") {
+      node.childNodes.forEach(walk);
+      return;
+    }
+    switch (tag) {
+      case "h1":
+        paragraphs.push(new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text, bold: true })] }));
+        break;
+      case "h2":
+        paragraphs.push(new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text, bold: true })] }));
+        break;
+      case "h3":
+        paragraphs.push(new Paragraph({ heading: HeadingLevel.HEADING_3, children: [new TextRun({ text, bold: true })] }));
+        break;
+      case "li":
+        paragraphs.push(new Paragraph({ text, bullet: { level: 0 } }));
+        break;
+      case "ul":
+      case "ol":
+        node.childNodes.forEach(walk);
+        break;
+      case "p":
+      case "div":
+      case "blockquote":
+        paragraphs.push(new Paragraph({ children: [new TextRun(text)] }));
+        break;
+      case "br":
+        paragraphs.push(new Paragraph({ children: [] }));
+        break;
+      default:
+        node.childNodes.forEach(walk);
+    }
+  };
+
+  container.childNodes.forEach(walk);
+
+  const doc = new Document({ sections: [{ children: paragraphs }] });
+  return await Packer.toBlob(doc);
 }
 
 function NotesPage() {
