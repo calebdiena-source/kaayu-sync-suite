@@ -1,8 +1,9 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import {
   LayoutDashboard, FolderOpen, Users2, CalendarDays, ListTodo,
-  Settings, LogOut, Sparkles, ScanLine, Cloud, Menu, X, Sun, Moon, Bell
+  Settings, LogOut, Sparkles, ScanLine, Cloud, Menu, X, Sun, Moon
 } from "lucide-react";
+import { NotificationsPopover } from "@/components/notifications-popover";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -114,7 +115,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Thème">
               {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
-            <Button variant="ghost" size="icon" aria-label="Notifications"><Bell className="h-4 w-4" /></Button>
+            <NotificationsPopover />
             <Button variant="ghost" size="icon" aria-label="Déconnexion" onClick={async () => { await supabase.auth.signOut(); navigate({ to: "/login" }); }}>
               <LogOut className="h-4 w-4" />
             </Button>

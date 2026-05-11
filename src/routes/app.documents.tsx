@@ -1,17 +1,19 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { Upload, FileText, Search, Trash2, Download, Folder, FolderPlus } from "lucide-react";
+import { Upload, FileText, Search, Trash2, Download, Folder, FolderPlus, FilePlus, FileDown, Share2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { exportRowsToCSV, exportRowsToPDF } from "@/lib/exports";
+import { ShareDocumentDialog } from "@/components/share-document-dialog";
 
 export const Route = createFileRoute("/app/documents")({
   head: () => ({ meta: [{ title: "Documents — Kaayu" }] }),
   component: DocsPage,
 });
 
-type Doc = { id: string; name: string; storage_path: string; mime_type: string | null; size_bytes: number | null; created_at: string; folder_id: string | null };
+type Doc = { id: string; name: string; storage_path: string; mime_type: string | null; size_bytes: number | null; created_at: string; folder_id: string | null; user_id: string };
 type Folder = { id: string; name: string };
 
 function DocsPage() {
@@ -19,8 +21,10 @@ function DocsPage() {
   const [docs, setDocs] = useState<Doc[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [folderId, setFolderId] = useState<string | null>(null);
+  const [view, setView] = useState<"mine" | "shared">("mine");
   const [search, setSearch] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [shareDocId, setShareDocId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [drag, setDrag] = useState(false);
 
@@ -28,7 +32,7 @@ function DocsPage() {
     if (!user) return;
     const [{ data: f }, { data: d }] = await Promise.all([
       supabase.from("folders").select("*").eq("user_id", user.id).order("name"),
-      supabase.from("documents").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
+      supabase.from("documents").select("*").order("created_at", { ascending: false }),
     ]);
     setFolders(f ?? []);
     setDocs(d ?? []);
@@ -76,7 +80,36 @@ function DocsPage() {
     window.open(data.signedUrl, "_blank");
   };
 
-  const filtered = docs.filter((d) => (folderId ? d.folder_id === folderId : true) && d.name.toLowerCase().includes(search.toLowerCase()));
+  const createTextDoc = async () => {
+    if (!user) return;
+    const name = prompt("Nom du document (ex : Notes.html) :", "Nouveau document.html");
+    if (!name) return;
+    const path = `${user.id}/${Date.now()}-${name}`;
+    const blob = new Blob(["<p></p>"], { type: "text/html" });
+    const { error: upErr } = await supabase.storage.from("documents").upload(path, blob);
+    if (upErr) return toast.error(upErr.message);
+    const { data, error } = await supabase.from("documents").insert({
+      user_id: user.id, name, storage_path: path, mime_type: "text/html", size_bytes: blob.size, folder_id: folderId,
+    }).select().single();
+    if (error) return toast.error(error.message);
+    toast.success("Document créé");
+    window.location.href = `/app/documents/${data.id}`;
+  };
+
+  const exportList = (format: "csv" | "pdf") => {
+    const rows = filtered.map((d) => [d.name, d.mime_type ?? "", d.size_bytes ? `${(d.size_bytes / 1024).toFixed(1)} Ko` : "—", new Date(d.created_at).toLocaleString("fr-FR")]);
+    const headers = ["Nom", "Type", "Taille", "Date"];
+    if (format === "csv") exportRowsToCSV(`documents-${Date.now()}.csv`, headers, rows);
+    else exportRowsToPDF(`documents-${Date.now()}.pdf`, "Liste des documents", headers, rows);
+  };
+
+  const filtered = docs.filter((d) => {
+    const mine = d.user_id === user?.id;
+    if (view === "mine" && !mine) return false;
+    if (view === "shared" && mine) return false;
+    if (folderId && d.folder_id !== folderId) return false;
+    return d.name.toLowerCase().includes(search.toLowerCase());
+  });
 
   return (
     <div className="space-y-6">
@@ -85,10 +118,13 @@ function DocsPage() {
           <h2 className="text-xl font-semibold tracking-tight">Documents</h2>
           <p className="text-sm text-muted-foreground">Stockage cloud sécurisé · {docs.length} fichier(s)</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={createFolder}><FolderPlus className="mr-2 h-4 w-4" />Nouveau dossier</Button>
-          <Button onClick={() => fileRef.current?.click()} disabled={uploading}>
-            <Upload className="mr-2 h-4 w-4" />{uploading ? "Téléversement…" : "Téléverser"}
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={() => exportList("csv")}><FileDown className="mr-1 h-4 w-4" />CSV</Button>
+          <Button variant="outline" size="sm" onClick={() => exportList("pdf")}><FileDown className="mr-1 h-4 w-4" />PDF</Button>
+          <Button variant="outline" size="sm" onClick={createFolder}><FolderPlus className="mr-1 h-4 w-4" />Dossier</Button>
+          <Button variant="outline" size="sm" onClick={createTextDoc}><FilePlus className="mr-1 h-4 w-4" />Document texte</Button>
+          <Button size="sm" onClick={() => fileRef.current?.click()} disabled={uploading}>
+            <Upload className="mr-1 h-4 w-4" />{uploading ? "…" : "Téléverser"}
           </Button>
           <input ref={fileRef} type="file" multiple className="hidden" onChange={(e) => upload(e.target.files)} />
         </div>
@@ -96,8 +132,15 @@ function DocsPage() {
 
       <div className="grid gap-4 lg:grid-cols-[16rem_1fr]">
         <aside className="space-y-1 rounded-xl border bg-card p-3">
+          <button onClick={() => setView("mine")} className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm ${view === "mine" ? "bg-accent" : "hover:bg-accent/60"}`}>
+            <Folder className="h-4 w-4" /> Mes fichiers
+          </button>
+          <button onClick={() => setView("shared")} className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm ${view === "shared" ? "bg-accent" : "hover:bg-accent/60"}`}>
+            <Users className="h-4 w-4" /> Partagés avec moi
+          </button>
+          <div className="my-2 border-t" />
           <button onClick={() => setFolderId(null)} className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm ${!folderId ? "bg-accent" : "hover:bg-accent/60"}`}>
-            <Folder className="h-4 w-4" /> Tous les fichiers
+            <Folder className="h-4 w-4" /> Tous les dossiers
           </button>
           {folders.map((f) => (
             <button key={f.id} onClick={() => setFolderId(f.id)} className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm ${folderId === f.id ? "bg-accent" : "hover:bg-accent/60"}`}>
@@ -119,7 +162,7 @@ function DocsPage() {
           {filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center gap-2 p-12 text-center text-sm text-muted-foreground">
               <Upload className="h-8 w-8 opacity-50" />
-              Glissez-déposez des fichiers ici ou cliquez sur Téléverser
+              {view === "shared" ? "Aucun document partagé avec vous" : "Glissez-déposez des fichiers ici ou cliquez sur Téléverser"}
             </div>
           ) : (
             <table className="w-full text-sm">
@@ -134,12 +177,21 @@ function DocsPage() {
               <tbody>
                 {filtered.map((d) => (
                   <tr key={d.id} className="border-t hover:bg-muted/30">
-                    <td className="px-3 py-2"><div className="flex items-center gap-2"><FileText className="h-4 w-4 text-primary" /> {d.name}</div></td>
+                    <td className="px-3 py-2">
+                      <Link to="/app/documents/$id" params={{ id: d.id }} className="flex items-center gap-2 hover:underline">
+                        <FileText className="h-4 w-4 text-primary" /> {d.name}
+                      </Link>
+                    </td>
                     <td className="px-3 py-2 text-muted-foreground">{d.size_bytes ? `${(d.size_bytes / 1024).toFixed(1)} Ko` : "—"}</td>
                     <td className="px-3 py-2 text-muted-foreground">{new Date(d.created_at).toLocaleString("fr-FR")}</td>
                     <td className="px-3 py-2 text-right">
+                      {d.user_id === user?.id && (
+                        <Button size="icon" variant="ghost" onClick={() => setShareDocId(d.id)}><Share2 className="h-4 w-4" /></Button>
+                      )}
                       <Button size="icon" variant="ghost" onClick={() => download(d)}><Download className="h-4 w-4" /></Button>
-                      <Button size="icon" variant="ghost" onClick={() => remove(d)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                      {d.user_id === user?.id && (
+                        <Button size="icon" variant="ghost" onClick={() => remove(d)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -148,6 +200,10 @@ function DocsPage() {
           )}
         </div>
       </div>
+
+      {shareDocId && (
+        <ShareDocumentDialog open={!!shareDocId} onOpenChange={(v) => !v && setShareDocId(null)} documentId={shareDocId} />
+      )}
     </div>
   );
 }

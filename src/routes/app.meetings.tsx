@@ -2,9 +2,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { Plus, Sparkles, Calendar as CalIcon, Loader2 } from "lucide-react";
+import { Plus, Sparkles, Calendar as CalIcon, Loader2, FileDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { exportTextToDOCX, exportTextToPDF } from "@/lib/exports";
 
 export const Route = createFileRoute("/app/meetings")({
   head: () => ({ meta: [{ title: "Réunions — Kaayu" }] }),
@@ -93,10 +94,14 @@ function MeetingsPage() {
                     <div className="font-semibold">{m.title}</div>
                     <div className="mt-1 text-xs text-muted-foreground">{(m.participants ?? []).length} participant(s) · {(m.participants ?? []).join(", ")}</div>
                   </div>
-                  <Button size="sm" variant="outline" onClick={() => summarize(m)} disabled={summarizing === m.id}>
-                    {summarizing === m.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1.5 h-3.5 w-3.5" />}
-                    Résumer (IA)
-                  </Button>
+                  <div className="flex flex-wrap gap-1">
+                    <Button size="sm" variant="outline" onClick={() => summarize(m)} disabled={summarizing === m.id}>
+                      {summarizing === m.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1.5 h-3.5 w-3.5" />}
+                      Résumer
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => exportTextToDOCX(`reunion-${m.id}.docx`, m.title, [m.notes ?? "", m.summary ?? ""].filter(Boolean))}><FileDown className="mr-1 h-3.5 w-3.5" />DOCX</Button>
+                    <Button size="sm" variant="outline" onClick={() => exportTextToPDF(`reunion-${m.id}.pdf`, m.title, `${m.notes ?? ""}\n\n${m.summary ?? ""}`)}><FileDown className="mr-1 h-3.5 w-3.5" />PDF</Button>
+                  </div>
                 </div>
                 {m.notes && <div className="mt-3 whitespace-pre-wrap text-sm text-muted-foreground">{m.notes}</div>}
                 {m.summary && (

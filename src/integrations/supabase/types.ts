@@ -110,6 +110,85 @@ export type Database = {
         }
         Relationships: []
       }
+      document_shares: {
+        Row: {
+          created_at: string
+          document_id: string
+          id: string
+          permission: string
+          shared_by_user_id: string
+          shared_with_user_id: string
+        }
+        Insert: {
+          created_at?: string
+          document_id: string
+          id?: string
+          permission?: string
+          shared_by_user_id: string
+          shared_with_user_id: string
+        }
+        Update: {
+          created_at?: string
+          document_id?: string
+          id?: string
+          permission?: string
+          shared_by_user_id?: string
+          shared_with_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_shares_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_versions: {
+        Row: {
+          comment: string | null
+          created_at: string
+          created_by: string
+          document_id: string
+          id: string
+          mime_type: string | null
+          size_bytes: number | null
+          storage_path: string
+          version_number: number
+        }
+        Insert: {
+          comment?: string | null
+          created_at?: string
+          created_by: string
+          document_id: string
+          id?: string
+          mime_type?: string | null
+          size_bytes?: number | null
+          storage_path: string
+          version_number: number
+        }
+        Update: {
+          comment?: string | null
+          created_at?: string
+          created_by?: string
+          document_id?: string
+          id?: string
+          mime_type?: string | null
+          size_bytes?: number | null
+          storage_path?: string
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_versions_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documents: {
         Row: {
           category: string | null

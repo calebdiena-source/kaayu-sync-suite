@@ -20,6 +20,7 @@ import { Route as AppMeetingsRouteImport } from './routes/app.meetings'
 import { Route as AppDocumentsRouteImport } from './routes/app.documents'
 import { Route as AppCalendarRouteImport } from './routes/app.calendar'
 import { Route as AppAdminRouteImport } from './routes/app.admin'
+import { Route as AppDocumentsIdRouteImport } from './routes/app.documents.$id'
 import { Route as ApiPublicGoogleCallbackRouteImport } from './routes/api/public/google.callback'
 
 const LoginRoute = LoginRouteImport.update({
@@ -77,6 +78,11 @@ const AppAdminRoute = AppAdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => AppRoute,
 } as any)
+const AppDocumentsIdRoute = AppDocumentsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AppDocumentsRoute,
+} as any)
 const ApiPublicGoogleCallbackRoute = ApiPublicGoogleCallbackRouteImport.update({
   id: '/api/public/google/callback',
   path: '/api/public/google/callback',
@@ -89,12 +95,13 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/app/admin': typeof AppAdminRoute
   '/app/calendar': typeof AppCalendarRoute
-  '/app/documents': typeof AppDocumentsRoute
+  '/app/documents': typeof AppDocumentsRouteWithChildren
   '/app/meetings': typeof AppMeetingsRoute
   '/app/ocr': typeof AppOcrRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/tasks': typeof AppTasksRoute
   '/app/': typeof AppIndexRoute
+  '/app/documents/$id': typeof AppDocumentsIdRoute
   '/api/public/google/callback': typeof ApiPublicGoogleCallbackRoute
 }
 export interface FileRoutesByTo {
@@ -102,12 +109,13 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/app/admin': typeof AppAdminRoute
   '/app/calendar': typeof AppCalendarRoute
-  '/app/documents': typeof AppDocumentsRoute
+  '/app/documents': typeof AppDocumentsRouteWithChildren
   '/app/meetings': typeof AppMeetingsRoute
   '/app/ocr': typeof AppOcrRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/tasks': typeof AppTasksRoute
   '/app': typeof AppIndexRoute
+  '/app/documents/$id': typeof AppDocumentsIdRoute
   '/api/public/google/callback': typeof ApiPublicGoogleCallbackRoute
 }
 export interface FileRoutesById {
@@ -117,12 +125,13 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/app/admin': typeof AppAdminRoute
   '/app/calendar': typeof AppCalendarRoute
-  '/app/documents': typeof AppDocumentsRoute
+  '/app/documents': typeof AppDocumentsRouteWithChildren
   '/app/meetings': typeof AppMeetingsRoute
   '/app/ocr': typeof AppOcrRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/tasks': typeof AppTasksRoute
   '/app/': typeof AppIndexRoute
+  '/app/documents/$id': typeof AppDocumentsIdRoute
   '/api/public/google/callback': typeof ApiPublicGoogleCallbackRoute
 }
 export interface FileRouteTypes {
@@ -139,6 +148,7 @@ export interface FileRouteTypes {
     | '/app/settings'
     | '/app/tasks'
     | '/app/'
+    | '/app/documents/$id'
     | '/api/public/google/callback'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -152,6 +162,7 @@ export interface FileRouteTypes {
     | '/app/settings'
     | '/app/tasks'
     | '/app'
+    | '/app/documents/$id'
     | '/api/public/google/callback'
   id:
     | '__root__'
@@ -166,6 +177,7 @@ export interface FileRouteTypes {
     | '/app/settings'
     | '/app/tasks'
     | '/app/'
+    | '/app/documents/$id'
     | '/api/public/google/callback'
   fileRoutesById: FileRoutesById
 }
@@ -255,6 +267,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppAdminRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/documents/$id': {
+      id: '/app/documents/$id'
+      path: '/$id'
+      fullPath: '/app/documents/$id'
+      preLoaderRoute: typeof AppDocumentsIdRouteImport
+      parentRoute: typeof AppDocumentsRoute
+    }
     '/api/public/google/callback': {
       id: '/api/public/google/callback'
       path: '/api/public/google/callback'
@@ -265,10 +284,22 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AppDocumentsRouteChildren {
+  AppDocumentsIdRoute: typeof AppDocumentsIdRoute
+}
+
+const AppDocumentsRouteChildren: AppDocumentsRouteChildren = {
+  AppDocumentsIdRoute: AppDocumentsIdRoute,
+}
+
+const AppDocumentsRouteWithChildren = AppDocumentsRoute._addFileChildren(
+  AppDocumentsRouteChildren,
+)
+
 interface AppRouteChildren {
   AppAdminRoute: typeof AppAdminRoute
   AppCalendarRoute: typeof AppCalendarRoute
-  AppDocumentsRoute: typeof AppDocumentsRoute
+  AppDocumentsRoute: typeof AppDocumentsRouteWithChildren
   AppMeetingsRoute: typeof AppMeetingsRoute
   AppOcrRoute: typeof AppOcrRoute
   AppSettingsRoute: typeof AppSettingsRoute
@@ -279,7 +310,7 @@ interface AppRouteChildren {
 const AppRouteChildren: AppRouteChildren = {
   AppAdminRoute: AppAdminRoute,
   AppCalendarRoute: AppCalendarRoute,
-  AppDocumentsRoute: AppDocumentsRoute,
+  AppDocumentsRoute: AppDocumentsRouteWithChildren,
   AppMeetingsRoute: AppMeetingsRoute,
   AppOcrRoute: AppOcrRoute,
   AppSettingsRoute: AppSettingsRoute,
