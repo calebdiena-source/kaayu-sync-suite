@@ -2,9 +2,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { Plus, Trash2 } from "lucide-react";
+import { Plus, Trash2, FileDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { exportRowsToCSV, exportRowsToPDF } from "@/lib/exports";
 
 export const Route = createFileRoute("/app/tasks")({
   head: () => ({ meta: [{ title: "Tâches — Kaayu" }] }),
@@ -44,7 +45,13 @@ function TasksPage() {
 
   return (
     <div className="space-y-6">
-      <div><h2 className="text-xl font-semibold tracking-tight">Tâches</h2><p className="text-sm text-muted-foreground">{tasks.filter(t=>t.status!=="done").length} en cours</p></div>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div><h2 className="text-xl font-semibold tracking-tight">Tâches</h2><p className="text-sm text-muted-foreground">{tasks.filter(t=>t.status!=="done").length} en cours</p></div>
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={() => exportRowsToCSV(`taches-${Date.now()}.csv`, ["Titre","Priorité","Échéance","Statut"], tasks.map(t=>[t.title,t.priority,t.due_date??"",t.status]))}><FileDown className="mr-1 h-4 w-4" />CSV</Button>
+          <Button size="sm" variant="outline" onClick={() => exportRowsToPDF(`taches-${Date.now()}.pdf`,"Liste des tâches",["Titre","Priorité","Échéance","Statut"], tasks.map(t=>[t.title,t.priority,t.due_date??"",t.status]))}><FileDown className="mr-1 h-4 w-4" />PDF</Button>
+        </div>
+      </div>
 
       <div className="flex flex-wrap gap-2 rounded-xl border bg-card p-4">
         <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Nouvelle tâche…" className="flex-1 min-w-[12rem] rounded-md border bg-background px-3 py-2 text-sm" />
