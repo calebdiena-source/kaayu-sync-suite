@@ -16,6 +16,7 @@ import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as AppTasksRouteImport } from './routes/app.tasks'
 import { Route as AppSettingsRouteImport } from './routes/app.settings'
 import { Route as AppOcrRouteImport } from './routes/app.ocr'
+import { Route as AppNotesRouteImport } from './routes/app.notes'
 import { Route as AppMeetingsRouteImport } from './routes/app.meetings'
 import { Route as AppDocumentsRouteImport } from './routes/app.documents'
 import { Route as AppCalendarRouteImport } from './routes/app.calendar'
@@ -58,6 +59,11 @@ const AppOcrRoute = AppOcrRouteImport.update({
   path: '/ocr',
   getParentRoute: () => AppRoute,
 } as any)
+const AppNotesRoute = AppNotesRouteImport.update({
+  id: '/notes',
+  path: '/notes',
+  getParentRoute: () => AppRoute,
+} as any)
 const AppMeetingsRoute = AppMeetingsRouteImport.update({
   id: '/meetings',
   path: '/meetings',
@@ -97,6 +103,7 @@ export interface FileRoutesByFullPath {
   '/app/calendar': typeof AppCalendarRoute
   '/app/documents': typeof AppDocumentsRouteWithChildren
   '/app/meetings': typeof AppMeetingsRoute
+  '/app/notes': typeof AppNotesRoute
   '/app/ocr': typeof AppOcrRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/tasks': typeof AppTasksRoute
@@ -111,6 +118,7 @@ export interface FileRoutesByTo {
   '/app/calendar': typeof AppCalendarRoute
   '/app/documents': typeof AppDocumentsRouteWithChildren
   '/app/meetings': typeof AppMeetingsRoute
+  '/app/notes': typeof AppNotesRoute
   '/app/ocr': typeof AppOcrRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/tasks': typeof AppTasksRoute
@@ -127,6 +135,7 @@ export interface FileRoutesById {
   '/app/calendar': typeof AppCalendarRoute
   '/app/documents': typeof AppDocumentsRouteWithChildren
   '/app/meetings': typeof AppMeetingsRoute
+  '/app/notes': typeof AppNotesRoute
   '/app/ocr': typeof AppOcrRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/tasks': typeof AppTasksRoute
@@ -144,6 +153,7 @@ export interface FileRouteTypes {
     | '/app/calendar'
     | '/app/documents'
     | '/app/meetings'
+    | '/app/notes'
     | '/app/ocr'
     | '/app/settings'
     | '/app/tasks'
@@ -158,6 +168,7 @@ export interface FileRouteTypes {
     | '/app/calendar'
     | '/app/documents'
     | '/app/meetings'
+    | '/app/notes'
     | '/app/ocr'
     | '/app/settings'
     | '/app/tasks'
@@ -173,6 +184,7 @@ export interface FileRouteTypes {
     | '/app/calendar'
     | '/app/documents'
     | '/app/meetings'
+    | '/app/notes'
     | '/app/ocr'
     | '/app/settings'
     | '/app/tasks'
@@ -239,6 +251,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppOcrRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/notes': {
+      id: '/app/notes'
+      path: '/notes'
+      fullPath: '/app/notes'
+      preLoaderRoute: typeof AppNotesRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/meetings': {
       id: '/app/meetings'
       path: '/meetings'
@@ -301,6 +320,7 @@ interface AppRouteChildren {
   AppCalendarRoute: typeof AppCalendarRoute
   AppDocumentsRoute: typeof AppDocumentsRouteWithChildren
   AppMeetingsRoute: typeof AppMeetingsRoute
+  AppNotesRoute: typeof AppNotesRoute
   AppOcrRoute: typeof AppOcrRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppTasksRoute: typeof AppTasksRoute
@@ -312,6 +332,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppCalendarRoute: AppCalendarRoute,
   AppDocumentsRoute: AppDocumentsRouteWithChildren,
   AppMeetingsRoute: AppMeetingsRoute,
+  AppNotesRoute: AppNotesRoute,
   AppOcrRoute: AppOcrRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppTasksRoute: AppTasksRoute,
