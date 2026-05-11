@@ -101,17 +101,25 @@ function DocsPage() {
 
   const createTextDoc = async () => {
     if (!user) return;
-    const name = prompt("Nom du document (ex : Notes.html) :", "Nouveau document.html");
+    const name = prompt("Nom de la note :", "Nouvelle note.docx");
     if (!name) return;
-    const path = `${user.id}/${Date.now()}-${name}`;
-    const blob = new Blob(["<p></p>"], { type: "text/html" });
-    const { error: upErr } = await supabase.storage.from("documents").upload(path, blob);
+    const finalName = /\.docx$/i.test(name) ? name : `${name}.docx`;
+    const path = `${user.id}/${Date.now()}-${finalName}`;
+    const today = new Date().toISOString().slice(0, 10);
+    const { data: rates } = await supabase
+      .from("exchange_rates")
+      .select("rate_date, usd_to_fc, eur_to_usd, chf_to_usd")
+      .order("rate_date", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const blob = await buildInitialDocxBlob(finalName.replace(/\.docx$/i, ""), rates ?? { rate_date: today, usd_to_fc: null, eur_to_usd: null, chf_to_usd: null });
+    const { error: upErr } = await supabase.storage.from("documents").upload(path, blob, { contentType: DOCX_MIME });
     if (upErr) return toast.error(upErr.message);
     const { data, error } = await supabase.from("documents").insert({
-      user_id: user.id, name, storage_path: path, mime_type: "text/html", size_bytes: blob.size, folder_id: folderId,
+      user_id: user.id, name: finalName, storage_path: path, mime_type: DOCX_MIME, size_bytes: blob.size, folder_id: folderId,
     }).select().single();
     if (error) return toast.error(error.message);
-    toast.success("Document créé");
+    toast.success("Note créée");
     window.location.href = `/app/documents/${data.id}`;
   };
 
