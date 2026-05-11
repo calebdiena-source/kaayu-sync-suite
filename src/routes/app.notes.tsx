@@ -34,22 +34,14 @@ function NotesPage() {
     if (!editor || !user) return;
     setSaving(true);
     try {
-    const name = `${title || "Note"}.docx`;
+    const name = `${title || "Note"}.html`;
       const path = `${user.id}/${Date.now()}-${name}`;
-      const docx = new Document({
-        sections: [{
-          children: [
-            new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: title || "Note", bold: true })] }),
-            ...paragraphs().map((p) => new Paragraph({ children: [new TextRun(p)] })),
-          ],
-        }],
-      });
-      const blob = await Packer.toBlob(docx);
-      const mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-      const { error: upErr } = await supabase.storage.from("documents").upload(path, blob, { contentType: mime });
+      const html = editor.getHTML();
+      const blob = new Blob([html], { type: "text/html" });
+      const { error: upErr } = await supabase.storage.from("documents").upload(path, blob, { contentType: "text/html" });
       if (upErr) throw upErr;
       const { data, error } = await supabase.from("documents").insert({
-        user_id: user.id, name, storage_path: path, mime_type: mime, size_bytes: blob.size,
+        user_id: user.id, name, storage_path: path, mime_type: "text/html", size_bytes: blob.size,
       }).select().single();
       if (error) throw error;
       toast.success("Note enregistrée dans Documents");
