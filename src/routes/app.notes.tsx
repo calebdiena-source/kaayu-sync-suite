@@ -1,174 +1,135 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEditor, EditorContent } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
-import { useState } from "react";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Save, Download, Bold, Italic, List, ListOrdered, Heading1, Heading2, Undo, Redo, NotebookPen } from "lucide-react";
+import { NotebookPen, Plus, Search, Pin, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { exportTextToPDF } from "@/lib/exports";
-import { Document, Packer, Paragraph, HeadingLevel, TextRun } from "docx";
 
 export const Route = createFileRoute("/app/notes")({
-  head: () => ({ meta: [{ title: "Prise de notes — Kaayu" }] }),
-  component: NotesPage,
+  head: () => ({ meta: [{ title: "Notes — Kaayu" }] }),
+  component: NotesListPage,
 });
 
-const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+type Note = {
+  id: string;
+  title: string;
+  content: string;
+  pinned: boolean;
+  created_at: string;
+  updated_at: string;
+};
 
-async function htmlToDocxBlob(title: string, html: string): Promise<Blob> {
-  // Parse HTML in the browser and map basic block-level elements to docx paragraphs.
-  const container = document.createElement("div");
-  container.innerHTML = html;
-
-  const paragraphs: Paragraph[] = [
-    new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: title, bold: true })] }),
-  ];
-
-  const walk = (node: Node) => {
-    if (node.nodeType === Node.TEXT_NODE) {
-      const text = (node.textContent ?? "").trim();
-      if (text) paragraphs.push(new Paragraph({ children: [new TextRun(text)] }));
-      return;
-    }
-    if (!(node instanceof HTMLElement)) return;
-    const tag = node.tagName.toLowerCase();
-    const text = node.textContent ?? "";
-    if (!text.trim() && tag !== "br") {
-      node.childNodes.forEach(walk);
-      return;
-    }
-    switch (tag) {
-      case "h1":
-        paragraphs.push(new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text, bold: true })] }));
-        break;
-      case "h2":
-        paragraphs.push(new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text, bold: true })] }));
-        break;
-      case "h3":
-        paragraphs.push(new Paragraph({ heading: HeadingLevel.HEADING_3, children: [new TextRun({ text, bold: true })] }));
-        break;
-      case "li":
-        paragraphs.push(new Paragraph({ text, bullet: { level: 0 } }));
-        break;
-      case "ul":
-      case "ol":
-        node.childNodes.forEach(walk);
-        break;
-      case "p":
-      case "div":
-      case "blockquote":
-        paragraphs.push(new Paragraph({ children: [new TextRun(text)] }));
-        break;
-      case "br":
-        paragraphs.push(new Paragraph({ children: [] }));
-        break;
-      default:
-        node.childNodes.forEach(walk);
-    }
-  };
-
-  container.childNodes.forEach(walk);
-
-  const doc = new Document({ sections: [{ children: paragraphs }] });
-  return await Packer.toBlob(doc);
+function stripHtml(html: string): string {
+  if (typeof document === "undefined") return html.replace(/<[^>]+>/g, "");
+  const div = document.createElement("div");
+  div.innerHTML = html;
+  return div.textContent || "";
 }
 
-function NotesPage() {
+function NotesListPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [title, setTitle] = useState("Nouvelle note");
-  const [saving, setSaving] = useState(false);
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState("");
 
-  const editor = useEditor({
-    extensions: [StarterKit],
-    content: "<p>Commencez à écrire votre note ici…</p>",
-    editorProps: { attributes: { class: "prose prose-sm dark:prose-invert max-w-none min-h-[60vh] focus:outline-none p-4" } },
+  const load = async () => {
+    if (!user) return;
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("notes")
+      .select("*")
+      .order("pinned", { ascending: false })
+      .order("updated_at", { ascending: false });
+    if (error) toast.error(error.message);
+    else setNotes((data ?? []) as Note[]);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, [user?.id]);
+
+  const createNote = async () => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from("notes")
+      .insert({ user_id: user.id, title: "Sans titre", content: "" })
+      .select()
+      .single();
+    if (error) return toast.error(error.message);
+    navigate({ to: "/app/notes/$id", params: { id: data.id } });
+  };
+
+  const togglePin = async (n: Note) => {
+    const { error } = await supabase.from("notes").update({ pinned: !n.pinned }).eq("id", n.id);
+    if (error) toast.error(error.message);
+    else load();
+  };
+
+  const remove = async (id: string) => {
+    if (!confirm("Supprimer cette note ?")) return;
+    const { error } = await supabase.from("notes").delete().eq("id", id);
+    if (error) toast.error(error.message);
+    else { toast.success("Note supprimée"); load(); }
+  };
+
+  const filtered = notes.filter((n) => {
+    const q = query.toLowerCase();
+    return !q || n.title.toLowerCase().includes(q) || stripHtml(n.content).toLowerCase().includes(q);
   });
-
-  const saveToCloud = async () => {
-    if (!editor || !user) return;
-    setSaving(true);
-    try {
-      const safeTitle = (title || "Note").trim();
-      const name = `${safeTitle}.docx`;
-      const path = `${user.id}/${Date.now()}-${name}`;
-      const blob = await htmlToDocxBlob(safeTitle, editor.getHTML());
-      const { error: upErr } = await supabase.storage.from("documents").upload(path, blob, { contentType: DOCX_MIME });
-      if (upErr) throw upErr;
-      const { data, error } = await supabase.from("documents").insert({
-        user_id: user.id, name, storage_path: path, mime_type: DOCX_MIME, size_bytes: blob.size,
-      }).select().single();
-      if (error) throw error;
-      toast.success("Note enregistrée en .docx dans Documents");
-      navigate({ to: "/app/documents/$id", params: { id: data.id } });
-    } catch (e: any) { toast.error(e.message); }
-    finally { setSaving(false); }
-  };
-
-  const downloadDocx = async () => {
-    if (!editor) return;
-    const safeTitle = (title || "Note").trim();
-    const blob = await htmlToDocxBlob(safeTitle, editor.getHTML());
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = `${safeTitle}.docx`; a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const downloadPdf = () => {
-    exportTextToPDF(`${title || "Note"}.pdf`, title || "Note", editor?.getText() ?? "");
-  };
-
-  if (!editor) return null;
-
-  const ToolbarBtn = ({ onClick, active, children }: { onClick: () => void; active?: boolean; children: React.ReactNode }) => (
-    <button type="button" onClick={onClick} className={`rounded-md p-2 text-sm hover:bg-accent ${active ? "bg-accent text-accent-foreground" : ""}`}>
-      {children}
-    </button>
-  );
 
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <NotebookPen className="h-5 w-5 text-primary" />
-        <h2 className="text-xl font-semibold tracking-tight">Prise de notes</h2>
-        <p className="text-sm text-muted-foreground">Tapez directement, puis enregistrez en Word (.docx). Vous pourrez rouvrir et modifier le document dans l'application.</p>
+        <h2 className="text-xl font-semibold tracking-tight">Notes</h2>
+        <p className="text-sm text-muted-foreground">Créez, modifiez et organisez vos notes.</p>
+        <Button size="sm" className="ml-auto" onClick={createNote}>
+          <Plus className="mr-1 h-4 w-4" /> Nouvelle note
+        </Button>
       </div>
 
-      <div className="rounded-xl border bg-card">
-        <div className="flex flex-wrap items-center gap-2 border-b p-3">
-          <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Titre de la note" className="max-w-sm" />
-          <div className="ml-auto flex flex-wrap gap-2">
-            <Button size="sm" onClick={saveToCloud} disabled={saving}>
-              <Save className="mr-1 h-4 w-4" />{saving ? "…" : "Enregistrer (.docx)"}
-            </Button>
-            <Button size="sm" variant="outline" onClick={downloadDocx}>
-              <Download className="mr-1 h-4 w-4" />Word (DOCX)
-            </Button>
-            <Button size="sm" variant="outline" onClick={downloadPdf}>
-              <Download className="mr-1 h-4 w-4" />PDF
-            </Button>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-1 border-b bg-muted/30 p-2">
-          <ToolbarBtn onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()} active={editor.isActive("heading", { level: 1 })}><Heading1 className="h-4 w-4" /></ToolbarBtn>
-          <ToolbarBtn onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()} active={editor.isActive("heading", { level: 2 })}><Heading2 className="h-4 w-4" /></ToolbarBtn>
-          <ToolbarBtn onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive("bold")}><Bold className="h-4 w-4" /></ToolbarBtn>
-          <ToolbarBtn onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive("italic")}><Italic className="h-4 w-4" /></ToolbarBtn>
-          <ToolbarBtn onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive("bulletList")}><List className="h-4 w-4" /></ToolbarBtn>
-          <ToolbarBtn onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive("orderedList")}><ListOrdered className="h-4 w-4" /></ToolbarBtn>
-          <div className="ml-auto flex gap-1">
-            <ToolbarBtn onClick={() => editor.chain().focus().undo().run()}><Undo className="h-4 w-4" /></ToolbarBtn>
-            <ToolbarBtn onClick={() => editor.chain().focus().redo().run()}><Redo className="h-4 w-4" /></ToolbarBtn>
-          </div>
-        </div>
-
-        <EditorContent editor={editor} />
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Rechercher dans les notes…" className="pl-9" />
       </div>
+
+      {loading ? (
+        <p className="text-sm text-muted-foreground">Chargement…</p>
+      ) : filtered.length === 0 ? (
+        <div className="rounded-xl border bg-card p-8 text-center">
+          <p className="text-sm text-muted-foreground">Aucune note. Créez votre première note.</p>
+          <Button className="mt-3" onClick={createNote}><Plus className="mr-1 h-4 w-4" /> Nouvelle note</Button>
+        </div>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {filtered.map((n) => (
+            <div key={n.id} className="group relative rounded-xl border bg-card p-4 transition hover:shadow-md">
+              <Link to="/app/notes/$id" params={{ id: n.id }} className="block">
+                <div className="flex items-start gap-2">
+                  {n.pinned && <Pin className="h-3.5 w-3.5 shrink-0 text-primary" />}
+                  <h3 className="line-clamp-1 flex-1 font-medium">{n.title || "Sans titre"}</h3>
+                </div>
+                <p className="mt-2 line-clamp-3 text-xs text-muted-foreground">
+                  {stripHtml(n.content) || "Note vide…"}
+                </p>
+                <p className="mt-3 text-[11px] text-muted-foreground">
+                  Modifié le {new Date(n.updated_at).toLocaleString("fr-FR")}
+                </p>
+              </Link>
+              <div className="absolute right-2 top-2 flex gap-1 opacity-0 transition group-hover:opacity-100">
+                <button onClick={() => togglePin(n)} className="rounded p-1 hover:bg-accent" title="Épingler">
+                  <Pin className={`h-3.5 w-3.5 ${n.pinned ? "text-primary" : ""}`} />
+                </button>
+                <button onClick={() => remove(n.id)} className="rounded p-1 hover:bg-destructive/10" title="Supprimer">
+                  <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
