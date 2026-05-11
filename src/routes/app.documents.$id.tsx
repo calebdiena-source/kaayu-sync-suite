@@ -31,9 +31,35 @@ function isTextualDoc(d: Doc) {
 }
 
 async function htmlToDocxBlob(title: string, html: string): Promise<Blob> {
-  const wrapped = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title></head><body>${html}</body></html>`;
-  const result: any = await HTMLtoDOCX(wrapped, null, { table: { row: { cantSplit: true } } });
-  return result instanceof Blob ? result : new Blob([result], { type: DOCX_MIME });
+  const container = document.createElement("div");
+  container.innerHTML = html;
+  const paragraphs: Paragraph[] = [
+    new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: title, bold: true })] }),
+  ];
+  const walk = (node: Node) => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const text = (node.textContent ?? "").trim();
+      if (text) paragraphs.push(new Paragraph({ children: [new TextRun(text)] }));
+      return;
+    }
+    if (!(node instanceof HTMLElement)) return;
+    const tag = node.tagName.toLowerCase();
+    const text = node.textContent ?? "";
+    if (!text.trim() && tag !== "br") { node.childNodes.forEach(walk); return; }
+    switch (tag) {
+      case "h1": paragraphs.push(new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text, bold: true })] })); break;
+      case "h2": paragraphs.push(new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text, bold: true })] })); break;
+      case "h3": paragraphs.push(new Paragraph({ heading: HeadingLevel.HEADING_3, children: [new TextRun({ text, bold: true })] })); break;
+      case "li": paragraphs.push(new Paragraph({ text, bullet: { level: 0 } })); break;
+      case "ul": case "ol": node.childNodes.forEach(walk); break;
+      case "p": case "div": case "blockquote": paragraphs.push(new Paragraph({ children: [new TextRun(text)] })); break;
+      case "br": paragraphs.push(new Paragraph({ children: [] })); break;
+      default: node.childNodes.forEach(walk);
+    }
+  };
+  container.childNodes.forEach(walk);
+  const docx = new Document({ sections: [{ children: paragraphs }] });
+  return await Packer.toBlob(docx);
 }
 
 function DocumentPage() {
