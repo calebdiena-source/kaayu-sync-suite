@@ -8,7 +8,9 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Save, Download, History, Share2, RotateCcw, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { ShareDocumentDialog } from "@/components/share-document-dialog";
-import { exportTextToDOCX, exportTextToPDF } from "@/lib/exports";
+import { exportTextToPDF } from "@/lib/exports";
+import mammoth from "mammoth/mammoth.browser";
+import HTMLtoDOCX from "html-to-docx-buffer";
 
 export const Route = createFileRoute("/app/documents/$id")({
   head: () => ({ meta: [{ title: "Document — Kaayu" }] }),
@@ -18,7 +20,21 @@ export const Route = createFileRoute("/app/documents/$id")({
 type Doc = { id: string; name: string; storage_path: string; mime_type: string | null; user_id: string; size_bytes: number | null; created_at: string };
 type Version = { id: string; version_number: number; storage_path: string; created_at: string; comment: string | null; size_bytes: number | null };
 
+const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 const TEXTUAL = ["text/html", "text/plain", "text/markdown"];
+
+function isDocx(d: Doc) {
+  return d.mime_type === DOCX_MIME || /\.docx$/i.test(d.name);
+}
+function isTextualDoc(d: Doc) {
+  return TEXTUAL.includes(d.mime_type ?? "") || /\.(html|txt|md)$/i.test(d.name);
+}
+
+async function htmlToDocxBlob(title: string, html: string): Promise<Blob> {
+  const wrapped = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${title}</title></head><body>${html}</body></html>`;
+  const result: any = await HTMLtoDOCX(wrapped, null, { table: { row: { cantSplit: true } } });
+  return result instanceof Blob ? result : new Blob([result], { type: DOCX_MIME });
+}
 
 function DocumentPage() {
   const { id } = Route.useParams();
@@ -38,7 +54,7 @@ function DocumentPage() {
     editorProps: { attributes: { class: "prose prose-sm max-w-none min-h-[400px] focus:outline-none p-4" } },
   });
 
-  const isTextual = !!doc && (TEXTUAL.includes(doc.mime_type ?? "") || doc.name.endsWith(".html") || doc.name.endsWith(".txt") || doc.name.endsWith(".md"));
+  const editable = !!doc && (isTextualDoc(doc) || isDocx(doc));
 
   const loadVersions = useCallback(async () => {
     const { data } = await supabase.from("document_versions").select("*").eq("document_id", id).order("version_number", { ascending: false });
@@ -52,10 +68,17 @@ function DocumentPage() {
       if (error || !d) { toast.error("Document introuvable"); navigate({ to: "/app/documents" }); return; }
       setDoc(d);
       setCanEdit(d.user_id === user.id);
-      // Load content if textual
-      if (TEXTUAL.includes(d.mime_type ?? "") || d.name.match(/\.(html|txt|md)$/i)) {
-        const { data: blob } = await supabase.storage.from("documents").download(d.storage_path);
-        if (blob) {
+      const { data: blob } = await supabase.storage.from("documents").download(d.storage_path);
+      if (blob) {
+        if (isDocx(d)) {
+          try {
+            const arrayBuffer = await blob.arrayBuffer();
+            const { value } = await mammoth.convertToHtml({ arrayBuffer });
+            editor?.commands.setContent(value || "<p></p>");
+          } catch (e: any) {
+            toast.error("Impossible de lire le .docx: " + e.message);
+          }
+        } else if (isTextualDoc(d)) {
           const text = await blob.text();
           editor?.commands.setContent(text || "<p></p>");
         }
@@ -69,10 +92,9 @@ function DocumentPage() {
     if (!doc || !editor || !user) return;
     setSaving(true);
     try {
-      // Snapshot current as a new version
       const nextVersion = (versions[0]?.version_number ?? 0) + 1;
-      const versionPath = `${user.id}/versions/${doc.id}-v${nextVersion}-${Date.now()}.html`;
-      // Save current storage as version
+      const ext = isDocx(doc) ? "docx" : (doc.name.match(/\.([^.]+)$/)?.[1] ?? "html");
+      const versionPath = `${user.id}/versions/${doc.id}-v${nextVersion}-${Date.now()}.${ext}`;
       const { data: currentBlob } = await supabase.storage.from("documents").download(doc.storage_path);
       if (currentBlob) {
         await supabase.storage.from("documents").upload(versionPath, currentBlob);
@@ -81,16 +103,32 @@ function DocumentPage() {
           size_bytes: currentBlob.size, mime_type: doc.mime_type, created_by: user.id, comment: "Avant modification",
         });
       }
-      // Upload new content
       const html = editor.getHTML();
-      const blob = new Blob([html], { type: "text/html" });
-      const { error: upErr } = await supabase.storage.from("documents").upload(doc.storage_path, blob, { upsert: true, contentType: "text/html" });
+      let blob: Blob; let mime: string;
+      if (isDocx(doc)) {
+        blob = await htmlToDocxBlob(doc.name.replace(/\.docx$/i, ""), html);
+        mime = DOCX_MIME;
+      } else {
+        blob = new Blob([html], { type: "text/html" });
+        mime = "text/html";
+      }
+      const { error: upErr } = await supabase.storage.from("documents").upload(doc.storage_path, blob, { upsert: true, contentType: mime });
       if (upErr) throw upErr;
-      await supabase.from("documents").update({ size_bytes: blob.size, mime_type: "text/html" }).eq("id", doc.id);
+      await supabase.from("documents").update({ size_bytes: blob.size, mime_type: mime }).eq("id", doc.id);
       toast.success("Document enregistré");
       loadVersions();
     } catch (e: any) { toast.error(e.message); }
     finally { setSaving(false); }
+  };
+
+  const downloadDocx = async () => {
+    if (!doc || !editor) return;
+    const baseName = doc.name.replace(/\.[^.]+$/, "");
+    const blob = await htmlToDocxBlob(baseName, editor.getHTML());
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `${baseName}.docx`; a.click();
+    URL.revokeObjectURL(url);
   };
 
   const downloadVersion = async (v: Version) => {
@@ -104,8 +142,14 @@ function DocumentPage() {
     if (!confirm(`Restaurer la version ${v.version_number} ?`)) return;
     const { data: blob } = await supabase.storage.from("documents").download(v.storage_path);
     if (!blob) return toast.error("Version introuvable");
-    const text = await blob.text();
-    editor.commands.setContent(text);
+    if (/\.docx$/i.test(v.storage_path)) {
+      const arrayBuffer = await blob.arrayBuffer();
+      const { value } = await mammoth.convertToHtml({ arrayBuffer });
+      editor.commands.setContent(value || "<p></p>");
+    } else {
+      const text = await blob.text();
+      editor.commands.setContent(text);
+    }
     toast.success("Version restaurée — n'oubliez pas d'enregistrer");
     setTab("edit");
   };
@@ -121,12 +165,12 @@ function DocumentPage() {
           <h2 className="text-lg font-semibold">{doc.name}</h2>
         </div>
         <div className="ml-auto flex flex-wrap gap-2">
-          {isTextual && canEdit && (
+          {editable && canEdit && (
             <Button onClick={save} disabled={saving} size="sm"><Save className="mr-1 h-4 w-4" />{saving ? "…" : "Enregistrer"}</Button>
           )}
-          {isTextual && (
+          {editable && (
             <>
-              <Button variant="outline" size="sm" onClick={() => exportTextToDOCX(`${doc.name.replace(/\.[^.]+$/, "")}.docx`, doc.name, [editor?.getText() ?? ""])}>
+              <Button variant="outline" size="sm" onClick={downloadDocx}>
                 <Download className="mr-1 h-4 w-4" />DOCX
               </Button>
               <Button variant="outline" size="sm" onClick={() => exportTextToPDF(`${doc.name.replace(/\.[^.]+$/, "")}.pdf`, doc.name, editor?.getText() ?? "")}>
@@ -142,7 +186,7 @@ function DocumentPage() {
 
       <div className="flex gap-1 border-b">
         <button onClick={() => setTab("edit")} className={`px-4 py-2 text-sm ${tab === "edit" ? "border-b-2 border-primary font-medium" : "text-muted-foreground"}`}>
-          {isTextual ? "Édition" : "Aperçu"}
+          {editable ? "Édition" : "Aperçu"}
         </button>
         <button onClick={() => setTab("versions")} className={`px-4 py-2 text-sm ${tab === "versions" ? "border-b-2 border-primary font-medium" : "text-muted-foreground"}`}>
           <History className="mr-1 inline h-4 w-4" />Versions ({versions.length})
@@ -151,7 +195,7 @@ function DocumentPage() {
 
       {tab === "edit" && (
         <div className="rounded-xl border bg-card">
-          {isTextual ? (
+          {editable ? (
             <EditorContent editor={editor} />
           ) : (
             <div className="p-8 text-center text-sm text-muted-foreground">
@@ -184,7 +228,7 @@ function DocumentPage() {
                     <td className="px-3 py-2 text-muted-foreground">{v.comment ?? "—"}</td>
                     <td className="px-3 py-2 text-right">
                       <Button size="sm" variant="ghost" onClick={() => downloadVersion(v)}><Download className="h-4 w-4" /></Button>
-                      {canEdit && isTextual && (
+                      {canEdit && editable && (
                         <Button size="sm" variant="ghost" onClick={() => restoreVersion(v)}><RotateCcw className="h-4 w-4" /></Button>
                       )}
                     </td>
