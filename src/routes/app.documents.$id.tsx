@@ -1,0 +1,202 @@
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect, useState, useCallback } from "react";
+import { useEditor, EditorContent } from "@tiptap/react";
+import StarterKit from "@tiptap/starter-kit";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft, Save, Download, History, Share2, RotateCcw, FileText } from "lucide-react";
+import { toast } from "sonner";
+import { ShareDocumentDialog } from "@/components/share-document-dialog";
+import { exportTextToDOCX, exportTextToPDF } from "@/lib/exports";
+
+export const Route = createFileRoute("/app/documents/$id")({
+  head: () => ({ meta: [{ title: "Document — Kaayu" }] }),
+  component: DocumentPage,
+});
+
+type Doc = { id: string; name: string; storage_path: string; mime_type: string | null; user_id: string; size_bytes: number | null; created_at: string };
+type Version = { id: string; version_number: number; storage_path: string; created_at: string; comment: string | null; size_bytes: number | null };
+
+const TEXTUAL = ["text/html", "text/plain", "text/markdown"];
+
+function DocumentPage() {
+  const { id } = Route.useParams();
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [doc, setDoc] = useState<Doc | null>(null);
+  const [versions, setVersions] = useState<Version[]>([]);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [tab, setTab] = useState<"edit" | "versions">("edit");
+  const [saving, setSaving] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [canEdit, setCanEdit] = useState(false);
+
+  const editor = useEditor({
+    extensions: [StarterKit],
+    content: "",
+    editorProps: { attributes: { class: "prose prose-sm max-w-none min-h-[400px] focus:outline-none p-4" } },
+  });
+
+  const isTextual = !!doc && (TEXTUAL.includes(doc.mime_type ?? "") || doc.name.endsWith(".html") || doc.name.endsWith(".txt") || doc.name.endsWith(".md"));
+
+  const loadVersions = useCallback(async () => {
+    const { data } = await supabase.from("document_versions").select("*").eq("document_id", id).order("version_number", { ascending: false });
+    setVersions(data ?? []);
+  }, [id]);
+
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      const { data: d, error } = await supabase.from("documents").select("*").eq("id", id).maybeSingle();
+      if (error || !d) { toast.error("Document introuvable"); navigate({ to: "/app/documents" }); return; }
+      setDoc(d);
+      setCanEdit(d.user_id === user.id);
+      // Load content if textual
+      if (TEXTUAL.includes(d.mime_type ?? "") || d.name.match(/\.(html|txt|md)$/i)) {
+        const { data: blob } = await supabase.storage.from("documents").download(d.storage_path);
+        if (blob) {
+          const text = await blob.text();
+          editor?.commands.setContent(text || "<p></p>");
+        }
+      }
+      setLoaded(true);
+      loadVersions();
+    })();
+  }, [user?.id, id, editor, navigate, loadVersions]);
+
+  const save = async () => {
+    if (!doc || !editor || !user) return;
+    setSaving(true);
+    try {
+      // Snapshot current as a new version
+      const nextVersion = (versions[0]?.version_number ?? 0) + 1;
+      const versionPath = `${user.id}/versions/${doc.id}-v${nextVersion}-${Date.now()}.html`;
+      // Save current storage as version
+      const { data: currentBlob } = await supabase.storage.from("documents").download(doc.storage_path);
+      if (currentBlob) {
+        await supabase.storage.from("documents").upload(versionPath, currentBlob);
+        await supabase.from("document_versions").insert({
+          document_id: doc.id, version_number: nextVersion, storage_path: versionPath,
+          size_bytes: currentBlob.size, mime_type: doc.mime_type, created_by: user.id, comment: "Avant modification",
+        });
+      }
+      // Upload new content
+      const html = editor.getHTML();
+      const blob = new Blob([html], { type: "text/html" });
+      const { error: upErr } = await supabase.storage.from("documents").upload(doc.storage_path, blob, { upsert: true, contentType: "text/html" });
+      if (upErr) throw upErr;
+      await supabase.from("documents").update({ size_bytes: blob.size, mime_type: "text/html" }).eq("id", doc.id);
+      toast.success("Document enregistré");
+      loadVersions();
+    } catch (e: any) { toast.error(e.message); }
+    finally { setSaving(false); }
+  };
+
+  const downloadVersion = async (v: Version) => {
+    const { data, error } = await supabase.storage.from("documents").createSignedUrl(v.storage_path, 60);
+    if (error) return toast.error(error.message);
+    window.open(data.signedUrl, "_blank");
+  };
+
+  const restoreVersion = async (v: Version) => {
+    if (!doc || !editor) return;
+    if (!confirm(`Restaurer la version ${v.version_number} ?`)) return;
+    const { data: blob } = await supabase.storage.from("documents").download(v.storage_path);
+    if (!blob) return toast.error("Version introuvable");
+    const text = await blob.text();
+    editor.commands.setContent(text);
+    toast.success("Version restaurée — n'oubliez pas d'enregistrer");
+    setTab("edit");
+  };
+
+  if (!loaded || !doc) return <div className="text-muted-foreground">Chargement…</div>;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="ghost" size="sm" asChild><Link to="/app/documents"><ArrowLeft className="mr-1 h-4 w-4" />Retour</Link></Button>
+        <div className="flex items-center gap-2">
+          <FileText className="h-5 w-5 text-primary" />
+          <h2 className="text-lg font-semibold">{doc.name}</h2>
+        </div>
+        <div className="ml-auto flex flex-wrap gap-2">
+          {isTextual && canEdit && (
+            <Button onClick={save} disabled={saving} size="sm"><Save className="mr-1 h-4 w-4" />{saving ? "…" : "Enregistrer"}</Button>
+          )}
+          {isTextual && (
+            <>
+              <Button variant="outline" size="sm" onClick={() => exportTextToDOCX(`${doc.name.replace(/\.[^.]+$/, "")}.docx`, doc.name, [editor?.getText() ?? ""])}>
+                <Download className="mr-1 h-4 w-4" />DOCX
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => exportTextToPDF(`${doc.name.replace(/\.[^.]+$/, "")}.pdf`, doc.name, editor?.getText() ?? "")}>
+                <Download className="mr-1 h-4 w-4" />PDF
+              </Button>
+            </>
+          )}
+          {canEdit && (
+            <Button variant="outline" size="sm" onClick={() => setShareOpen(true)}><Share2 className="mr-1 h-4 w-4" />Partager</Button>
+          )}
+        </div>
+      </div>
+
+      <div className="flex gap-1 border-b">
+        <button onClick={() => setTab("edit")} className={`px-4 py-2 text-sm ${tab === "edit" ? "border-b-2 border-primary font-medium" : "text-muted-foreground"}`}>
+          {isTextual ? "Édition" : "Aperçu"}
+        </button>
+        <button onClick={() => setTab("versions")} className={`px-4 py-2 text-sm ${tab === "versions" ? "border-b-2 border-primary font-medium" : "text-muted-foreground"}`}>
+          <History className="mr-1 inline h-4 w-4" />Versions ({versions.length})
+        </button>
+      </div>
+
+      {tab === "edit" && (
+        <div className="rounded-xl border bg-card">
+          {isTextual ? (
+            <EditorContent editor={editor} />
+          ) : (
+            <div className="p-8 text-center text-sm text-muted-foreground">
+              Aperçu non disponible pour ce type de fichier ({doc.mime_type ?? "inconnu"}).
+              <div className="mt-3">
+                <Button variant="outline" size="sm" onClick={async () => {
+                  const { data } = await supabase.storage.from("documents").createSignedUrl(doc.storage_path, 60);
+                  if (data) window.open(data.signedUrl, "_blank");
+                }}><Download className="mr-1 h-4 w-4" />Télécharger</Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === "versions" && (
+        <div className="rounded-xl border bg-card">
+          {versions.length === 0 ? (
+            <div className="p-8 text-center text-sm text-muted-foreground">Aucune version antérieure.</div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-muted/50 text-xs uppercase tracking-wider text-muted-foreground">
+                <tr><th className="px-3 py-2 text-left">Version</th><th className="px-3 py-2 text-left">Date</th><th className="px-3 py-2 text-left">Commentaire</th><th className="px-3 py-2"></th></tr>
+              </thead>
+              <tbody>
+                {versions.map((v) => (
+                  <tr key={v.id} className="border-t">
+                    <td className="px-3 py-2 font-mono">v{v.version_number}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{new Date(v.created_at).toLocaleString("fr-FR")}</td>
+                    <td className="px-3 py-2 text-muted-foreground">{v.comment ?? "—"}</td>
+                    <td className="px-3 py-2 text-right">
+                      <Button size="sm" variant="ghost" onClick={() => downloadVersion(v)}><Download className="h-4 w-4" /></Button>
+                      {canEdit && isTextual && (
+                        <Button size="sm" variant="ghost" onClick={() => restoreVersion(v)}><RotateCcw className="h-4 w-4" /></Button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      <ShareDocumentDialog open={shareOpen} onOpenChange={setShareOpen} documentId={doc.id} />
+    </div>
+  );
+}
