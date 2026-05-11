@@ -1,10 +1,12 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { Upload, FileText, Search, Trash2, Download, Folder, FolderPlus } from "lucide-react";
+import { Upload, FileText, Search, Trash2, Download, Folder, FolderPlus, FilePlus, FileDown, Share2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { exportRowsToCSV, exportRowsToPDF } from "@/lib/exports";
+import { ShareDocumentDialog } from "@/components/share-document-dialog";
 
 export const Route = createFileRoute("/app/documents")({
   head: () => ({ meta: [{ title: "Documents — Kaayu" }] }),
@@ -19,8 +21,10 @@ function DocsPage() {
   const [docs, setDocs] = useState<Doc[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [folderId, setFolderId] = useState<string | null>(null);
+  const [view, setView] = useState<"mine" | "shared">("mine");
   const [search, setSearch] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [shareDocId, setShareDocId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [drag, setDrag] = useState(false);
 
@@ -28,7 +32,7 @@ function DocsPage() {
     if (!user) return;
     const [{ data: f }, { data: d }] = await Promise.all([
       supabase.from("folders").select("*").eq("user_id", user.id).order("name"),
-      supabase.from("documents").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
+      supabase.from("documents").select("*").order("created_at", { ascending: false }),
     ]);
     setFolders(f ?? []);
     setDocs(d ?? []);
