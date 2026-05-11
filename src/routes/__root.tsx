@@ -11,6 +11,7 @@ import {
 import { Toaster } from "sonner";
 
 import "@/lib/server-fn-auth.client";
+import "@/lib/pwa-register.client";
 import appCss from "../styles.css?url";
 
 function NotFoundComponent() {
@@ -87,12 +88,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "twitter:description", content: "Kaayu Workspace est une plateforme cloud intelligente conçue pour centraliser la gestion documentaire, les réunions, les tâches et les reunions ." },
       { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/TxpUA318N9azbn9AcRmrwxaXp2D3/social-images/social-1778513506390-Kaayu_workspace.webp" },
       { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/TxpUA318N9azbn9AcRmrwxaXp2D3/social-images/social-1778513506390-Kaayu_workspace.webp" },
+      { name: "theme-color", content: "#6366F1" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
+      { name: "apple-mobile-web-app-title", content: "Kaayu" },
     ],
     links: [
-      {
-        rel: "stylesheet",
-        href: appCss,
-      },
+      { rel: "stylesheet", href: appCss },
+      { rel: "manifest", href: "/manifest.webmanifest" },
+      { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
+      { rel: "icon", type: "image/png", sizes: "192x192", href: "/icon-192.png" },
+      { rel: "icon", type: "image/png", sizes: "512x512", href: "/icon-512.png" },
     ],
   }),
   shellComponent: RootShell,
