@@ -73,6 +73,8 @@ export type Database = {
           created_at: string
           description: string | null
           end_at: string | null
+          google_event_id: string | null
+          google_synced_at: string | null
           id: string
           location: string | null
           reminder_minutes: number | null
@@ -84,6 +86,8 @@ export type Database = {
           created_at?: string
           description?: string | null
           end_at?: string | null
+          google_event_id?: string | null
+          google_synced_at?: string | null
           id?: string
           location?: string | null
           reminder_minutes?: number | null
@@ -95,6 +99,8 @@ export type Database = {
           created_at?: string
           description?: string | null
           end_at?: string | null
+          google_event_id?: string | null
+          google_synced_at?: string | null
           id?: string
           location?: string | null
           reminder_minutes?: number | null
@@ -218,6 +224,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      google_integrations: {
+        Row: {
+          access_token: string
+          calendar_id: string | null
+          created_at: string
+          google_email: string | null
+          id: string
+          refresh_token: string
+          scope: string | null
+          sync_enabled: boolean
+          token_expires_at: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token: string
+          calendar_id?: string | null
+          created_at?: string
+          google_email?: string | null
+          id?: string
+          refresh_token: string
+          scope?: string | null
+          sync_enabled?: boolean
+          token_expires_at: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token?: string
+          calendar_id?: string | null
+          created_at?: string
+          google_email?: string | null
+          id?: string
+          refresh_token?: string
+          scope?: string | null
+          sync_enabled?: boolean
+          token_expires_at?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       meetings: {
         Row: {

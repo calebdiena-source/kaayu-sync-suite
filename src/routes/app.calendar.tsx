@@ -5,6 +5,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { Plus, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { useServerFn } from "@tanstack/react-start";
+import { syncEventToGoogle } from "@/lib/google.functions";
 
 export const Route = createFileRoute("/app/calendar")({
   head: () => ({ meta: [{ title: "Calendrier — Kaayu" }] }),
@@ -27,11 +29,19 @@ function CalendarPage() {
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [user?.id]);
 
+  const syncFn = useServerFn(syncEventToGoogle);
   const add = async () => {
     if (!user || !title || !start) return;
-    const { error } = await supabase.from("calendar_events").insert({ user_id: user.id, title, start_at: start, location });
-    if (error) toast.error(error.message);
-    else { setTitle(""); setStart(""); setLocation(""); load(); toast.success("Événement ajouté"); }
+    const { data, error } = await supabase.from("calendar_events")
+      .insert({ user_id: user.id, title, start_at: start, location })
+      .select().single();
+    if (error) { toast.error(error.message); return; }
+    setTitle(""); setStart(""); setLocation(""); load();
+    toast.success("Événement ajouté");
+    if (data) {
+      try { await syncFn({ data: { eventId: data.id } }); toast.success("Synchronisé avec Google Calendar"); }
+      catch { /* not connected — silent */ }
+    }
   };
 
   return (
