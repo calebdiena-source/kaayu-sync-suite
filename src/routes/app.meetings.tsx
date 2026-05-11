@@ -11,7 +11,7 @@ export const Route = createFileRoute("/app/meetings")({
   component: MeetingsPage,
 });
 
-type Meeting = { id: string; title: string; meeting_date: string; participants: string[]; notes: string | null; summary: string | null };
+type Meeting = { id: string; title: string; meeting_date: string; participants: string[] | null; notes: string | null; summary: string | null };
 
 function MeetingsPage() {
   const { user } = useAuth();
