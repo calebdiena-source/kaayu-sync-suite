@@ -269,10 +269,15 @@ function ReportsPage() {
             {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
             Générer
           </Button>
-          {report && (
-            <Button variant="outline" onClick={exportDocx}>
-              <Download className="mr-2 h-4 w-4" /> .docx
-            </Button>
+          {report && stats && (
+            <>
+              <Button variant="outline" onClick={() => exportDocx(report, stats, month)}>
+                <Download className="mr-2 h-4 w-4" /> .docx
+              </Button>
+              <Button variant="outline" onClick={() => exportPdf(report, stats, month)}>
+                <FileText className="mr-2 h-4 w-4" /> .pdf
+              </Button>
+            </>
           )}
         </div>
       </div>
