@@ -206,9 +206,40 @@ function ReportsPage() {
         </div>
       </div>
 
+      <section className="rounded-lg border bg-card">
+        <header className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
+          <h2 className="flex items-center gap-2 text-sm font-semibold"><History className="h-4 w-4" /> Historique des rapports</h2>
+          <div className="flex items-center gap-2">
+            <input type="month" value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} className="rounded-md border bg-background px-2 py-1 text-xs" placeholder="Filtrer" />
+            {filterMonth && <button onClick={() => setFilterMonth("")} className="text-xs text-muted-foreground hover:text-foreground">Effacer</button>}
+          </div>
+        </header>
+        {filteredHistory.length === 0 ? (
+          <div className="px-4 py-6 text-center text-sm text-muted-foreground">Aucun rapport pour ce filtre.</div>
+        ) : (
+          <ul className="divide-y">
+            {filteredHistory.map((h) => {
+              const [hy, hm] = h.month.split("-").map(Number);
+              const label = new Date(hy, hm - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+              return (
+                <li key={h.id} className={`flex items-center gap-3 px-4 py-3 transition-colors ${activeId === h.id ? "bg-accent/50" : "hover:bg-accent/30"}`}>
+                  <button onClick={() => openHistory(h)} className="flex-1 text-left">
+                    <div className="text-sm font-medium capitalize">{label}</div>
+                    <div className="text-xs text-muted-foreground">Généré le {new Date(h.created_at).toLocaleString("fr-FR")} · {h.stats?.documents?.count ?? 0} docs · {h.stats?.meetings?.count ?? 0} réunions</div>
+                  </button>
+                  <Button variant="ghost" size="icon" onClick={() => removeHistory(h.id)} aria-label="Supprimer">
+                    <Trash2 className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
       {!report && !loading && (
         <div className="rounded-lg border border-dashed p-12 text-center text-sm text-muted-foreground">
-          Sélectionnez un mois et cliquez sur « Générer » pour produire le rapport IA.
+          Sélectionnez un mois et cliquez sur « Générer », ou ouvrez un rapport de l'historique.
         </div>
       )}
 
