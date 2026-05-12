@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Upload, FileText, Search, Trash2, Download, Folder, FolderPlus, StickyNote, FileDown, Share2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { exportRowsToCSV, exportRowsToPDF } from "@/lib/exports";
 import { ShareDocumentDialog } from "@/components/share-document-dialog";
@@ -46,6 +48,9 @@ function DocsPage() {
   const [shareDocId, setShareDocId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [drag, setDrag] = useState(false);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [noteName, setNoteName] = useState("");
+  const [creatingNote, setCreatingNote] = useState(false);
 
   const load = async () => {
     if (!user) return;
@@ -107,29 +112,36 @@ function DocsPage() {
     window.open(data.signedUrl, "_blank");
   };
 
-  const createTextDoc = async () => {
+  const submitNote = async () => {
     if (!user) return;
-    const name = prompt("Nom de la note :", "Nouvelle note.docx");
-    if (!name) return;
-    const finalName = /\.docx$/i.test(name) ? name : `${name}.docx`;
-    const path = `${user.id}/${Date.now()}-${finalName}`;
-    const rates = await fetchLatestRates();
-    const headerText = buildRateHeaderText(rates);
-    const blob = await buildInitialDocxBlob(finalName.replace(/\.docx$/i, ""), headerText);
-    const { error: upErr } = await supabase.storage.from("documents").upload(path, blob, { contentType: DOCX_MIME });
-    if (upErr) return toast.error(upErr.message);
-    const { data, error } = await supabase.from("documents").insert({
-      user_id: user.id, name: finalName, storage_path: path, mime_type: DOCX_MIME, size_bytes: blob.size, folder_id: folderId,
-    }).select().single();
-    if (error) return toast.error(error.message);
-    // Stamp the rate header on the initial version row so AI monthly reports can read it
-    await supabase.from("document_versions").insert({
-      document_id: data.id, version_number: 1, storage_path: path,
-      size_bytes: blob.size, mime_type: DOCX_MIME, created_by: user.id,
-      comment: headerText,
-    });
-    toast.success("Note créée");
-    navigate({ to: "/app/documents/$id", params: { id: data.id } });
+    const raw = noteName.trim() || "Nouvelle note";
+    const finalName = /\.docx$/i.test(raw) ? raw : `${raw}.docx`;
+    setCreatingNote(true);
+    try {
+      const path = `${user.id}/${Date.now()}-${finalName}`;
+      const rates = await fetchLatestRates();
+      const headerText = buildRateHeaderText(rates);
+      const blob = await buildInitialDocxBlob(finalName.replace(/\.docx$/i, ""), headerText);
+      const { error: upErr } = await supabase.storage.from("documents").upload(path, blob, { contentType: DOCX_MIME });
+      if (upErr) throw upErr;
+      const { data, error } = await supabase.from("documents").insert({
+        user_id: user.id, name: finalName, storage_path: path, mime_type: DOCX_MIME, size_bytes: blob.size, folder_id: folderId,
+      }).select().single();
+      if (error) throw error;
+      await supabase.from("document_versions").insert({
+        document_id: data.id, version_number: 1, storage_path: path,
+        size_bytes: blob.size, mime_type: DOCX_MIME, created_by: user.id,
+        comment: headerText,
+      });
+      toast.success("Note créée");
+      setNoteOpen(false);
+      setNoteName("");
+      navigate({ to: "/app/documents/$id", params: { id: data.id } });
+    } catch (e: any) {
+      toast.error(e.message ?? "Erreur lors de la création");
+    } finally {
+      setCreatingNote(false);
+    }
   };
 
   const exportList = (format: "csv" | "pdf") => {
@@ -158,7 +170,7 @@ function DocsPage() {
           <Button variant="outline" size="sm" onClick={() => exportList("csv")}><FileDown className="mr-1 h-4 w-4" />CSV</Button>
           <Button variant="outline" size="sm" onClick={() => exportList("pdf")}><FileDown className="mr-1 h-4 w-4" />PDF</Button>
           <Button variant="outline" size="sm" onClick={createFolder}><FolderPlus className="mr-1 h-4 w-4" />Dossier</Button>
-          <Button variant="outline" size="sm" onClick={createTextDoc}><StickyNote className="mr-1 h-4 w-4" />Note</Button>
+          <Button variant="outline" size="sm" onClick={() => { setNoteName("Nouvelle note"); setNoteOpen(true); }}><StickyNote className="mr-1 h-4 w-4" />Note</Button>
           <Button size="sm" onClick={() => fileRef.current?.click()} disabled={uploading}>
             <Upload className="mr-1 h-4 w-4" />{uploading ? "…" : "Téléverser"}
           </Button>
@@ -240,6 +252,29 @@ function DocsPage() {
       {shareDocId && (
         <ShareDocumentDialog open={!!shareDocId} onOpenChange={(v) => !v && setShareDocId(null)} documentId={shareDocId} />
       )}
+
+      <Dialog open={noteOpen} onOpenChange={(v) => { if (!creatingNote) setNoteOpen(v); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nouvelle note</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <label className="text-sm text-muted-foreground">Nom de la note</label>
+            <Input
+              autoFocus
+              value={noteName}
+              onChange={(e) => setNoteName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && !creatingNote) { e.preventDefault(); void submitNote(); } }}
+              placeholder="Ex: Réunion du 12 mai"
+            />
+            <p className="text-xs text-muted-foreground">L'extension .docx sera ajoutée automatiquement.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNoteOpen(false)} disabled={creatingNote}>Annuler</Button>
+            <Button onClick={submitNote} disabled={creatingNote}>{creatingNote ? "Création…" : "OK"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -166,7 +166,7 @@ export function RichTextEditor({
 }: Props) {
   const editor = useEditor({
     extensions: [
-      StarterKit,
+      StarterKit.configure({ link: false, underline: false }),
       Underline,
       TextStyle,
       Color,
