@@ -4,8 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { FileBarChart, Loader2, Download, Sparkles, History, Trash2 } from "lucide-react";
+import { FileBarChart, Loader2, Download, Sparkles, History, Trash2, FileText } from "lucide-react";
 import { Document, Packer, Paragraph, HeadingLevel, TextRun, Table, TableRow, TableCell, WidthType } from "docx";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 
 export const Route = createFileRoute("/app/reports")({
   head: () => ({ meta: [{ title: "Rapports mensuels — Kaayu" }] }),
@@ -122,64 +124,133 @@ function ReportsPage() {
 
   const filteredHistory = filterMonth ? history.filter((h) => h.month === filterMonth) : history;
 
-  const exportDocx = async () => {
-    if (!report || !stats) return;
+  const monthLabelOf = (mo: string) => {
+    const [y, m] = mo.split("-").map(Number);
+    return new Date(y, m - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+  };
+
+  const downloadBlob = (blob: Blob, filename: string) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportDocx = async (r: Report, s: Stats, mo: string) => {
     const para = (text: string, opts: any = {}) => new Paragraph({ children: [new TextRun({ text, ...opts })], spacing: { after: 120 } });
     const heading = (text: string, level: any = HeadingLevel.HEADING_1) => new Paragraph({ text, heading: level, spacing: { before: 240, after: 120 } });
-
-    const rateRow = (label: string, s: RateStat | null) => new TableRow({
+    const rateRow = (label: string, st: RateStat | null) => new TableRow({
       children: [
         new TableCell({ children: [para(label, { bold: true })] }),
-        new TableCell({ children: [para(s ? s.first.toFixed(6) : "—")] }),
-        new TableCell({ children: [para(s ? s.last.toFixed(6) : "—")] }),
-        new TableCell({ children: [para(s ? `${s.variation.toFixed(2)} %` : "—")] }),
-        new TableCell({ children: [para(s ? s.avg.toFixed(6) : "—")] }),
+        new TableCell({ children: [para(st ? st.first.toFixed(6) : "—")] }),
+        new TableCell({ children: [para(st ? st.last.toFixed(6) : "—")] }),
+        new TableCell({ children: [para(st ? `${st.variation.toFixed(2)} %` : "—")] }),
+        new TableCell({ children: [para(st ? st.avg.toFixed(6) : "—")] }),
       ],
     });
-
     const ratesTable = new Table({
       width: { size: 100, type: WidthType.PERCENTAGE },
       rows: [
         new TableRow({ children: ["Devise", "Début", "Fin", "Variation", "Moyenne"].map(t => new TableCell({ children: [para(t, { bold: true })] })) }),
-        rateRow("USD → FC", stats.rates.usd_to_fc),
-        rateRow("EUR → USD", stats.rates.eur_to_usd),
-        rateRow("CHF → USD", stats.rates.chf_to_usd),
+        rateRow("USD → FC", s.rates.usd_to_fc),
+        rateRow("EUR → USD", s.rates.eur_to_usd),
+        rateRow("CHF → USD", s.rates.chf_to_usd),
       ],
     });
-
     const doc = new Document({
       sections: [{
         children: [
-          new Paragraph({ text: `Rapport mensuel — ${monthLabel}`, heading: HeadingLevel.TITLE }),
+          new Paragraph({ text: `Rapport mensuel — ${monthLabelOf(mo)}`, heading: HeadingLevel.TITLE }),
           para(`Généré le ${new Date().toLocaleString("fr-FR")} · Kaayu Workspace`),
           heading("Synthèse exécutive"),
-          para(report.executive_summary),
+          para(r.executive_summary),
           heading("Points clés"),
-          ...report.key_points.map(p => new Paragraph({ text: p, bullet: { level: 0 } })),
+          ...r.key_points.map(p => new Paragraph({ text: p, bullet: { level: 0 } })),
           heading("Analyse des taux de change"),
-          para(report.rate_analysis),
+          para(r.rate_analysis),
           ratesTable,
           heading("Analyse de l'activité"),
-          para(report.activity_analysis),
+          para(r.activity_analysis),
           heading("Indicateurs"),
-          para(`Documents créés : ${stats.documents.count} (${fmtBytes(stats.documents.totalSize)})`),
-          para(`Nouvelles versions : ${stats.versions.count}`),
-          para(`Tâches : ${stats.tasks.count}`),
-          para(`Réunions : ${stats.meetings.count}`),
+          para(`Documents créés : ${s.documents.count} (${fmtBytes(s.documents.totalSize)})`),
+          para(`Nouvelles versions : ${s.versions.count}`),
+          para(`Tâches : ${s.tasks.count}`),
+          para(`Réunions : ${s.meetings.count}`),
           heading("Recommandations"),
-          ...report.recommendations.map(p => new Paragraph({ text: p, bullet: { level: 0 } })),
+          ...r.recommendations.map(p => new Paragraph({ text: p, bullet: { level: 0 } })),
         ],
       }],
     });
-
     const blob = await Packer.toBlob(doc);
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `rapport-kaayu-${month}.docx`;
-    a.click();
-    URL.revokeObjectURL(url);
+    downloadBlob(blob, `rapport-kaayu-${mo}.docx`);
     toast.success("Export .docx téléchargé");
+  };
+
+  const exportPdf = (r: Report, s: Stats, mo: string) => {
+    const pdf = new jsPDF({ unit: "pt", format: "a4" });
+    const margin = 40;
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    let y = margin;
+
+    const ensureSpace = (h: number) => {
+      if (y + h > pageH - margin) { pdf.addPage(); y = margin; }
+    };
+    const writeText = (text: string, size = 11, bold = false, color: [number, number, number] = [30, 30, 30]) => {
+      pdf.setFont("helvetica", bold ? "bold" : "normal");
+      pdf.setFontSize(size);
+      pdf.setTextColor(...color);
+      const lines = pdf.splitTextToSize(text, pageW - margin * 2);
+      const lh = size * 1.3;
+      for (const line of lines) {
+        ensureSpace(lh);
+        pdf.text(line, margin, y);
+        y += lh;
+      }
+    };
+    const heading = (text: string) => { y += 8; ensureSpace(24); writeText(text, 14, true, [20, 60, 120]); y += 4; };
+
+    writeText(`Rapport mensuel — ${monthLabelOf(mo)}`, 20, true, [10, 30, 80]);
+    writeText(`Généré le ${new Date().toLocaleString("fr-FR")} · Kaayu Workspace`, 9, false, [120, 120, 120]);
+    y += 8;
+    heading("Synthèse exécutive");
+    writeText(r.executive_summary);
+    heading("Points clés");
+    r.key_points.forEach((p) => writeText(`• ${p}`));
+    heading("Analyse des taux de change");
+    writeText(r.rate_analysis);
+
+    const rateRow = (label: string, st: RateStat | null) => st
+      ? [label, st.first.toFixed(6), st.last.toFixed(6), st.min.toFixed(6), st.max.toFixed(6), st.avg.toFixed(6), `${st.variation.toFixed(2)} %`]
+      : [label, "—", "—", "—", "—", "—", "—"];
+    autoTable(pdf, {
+      startY: y + 6,
+      head: [["Devise", "Début", "Fin", "Min", "Max", "Moyenne", "Variation"]],
+      body: [
+        rateRow("USD → FC", s.rates.usd_to_fc),
+        rateRow("EUR → USD", s.rates.eur_to_usd),
+        rateRow("CHF → USD", s.rates.chf_to_usd),
+      ],
+      styles: { font: "helvetica", fontSize: 9 },
+      headStyles: { fillColor: [20, 60, 120] },
+      margin: { left: margin, right: margin },
+    });
+    y = (pdf as any).lastAutoTable.finalY + 12;
+
+    heading("Analyse de l'activité");
+    writeText(r.activity_analysis);
+    heading("Indicateurs");
+    writeText(`Documents : ${s.documents.count} (${fmtBytes(s.documents.totalSize)})`);
+    writeText(`Versions : ${s.versions.count}`);
+    writeText(`Tâches : ${s.tasks.count}`);
+    writeText(`Réunions : ${s.meetings.count}`);
+    heading("Recommandations");
+    r.recommendations.forEach((p) => writeText(`→ ${p}`));
+
+    pdf.save(`rapport-kaayu-${mo}.pdf`);
+    toast.success("Export .pdf téléchargé");
   };
 
   return (
@@ -198,10 +269,15 @@ function ReportsPage() {
             {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}
             Générer
           </Button>
-          {report && (
-            <Button variant="outline" onClick={exportDocx}>
-              <Download className="mr-2 h-4 w-4" /> .docx
-            </Button>
+          {report && stats && (
+            <>
+              <Button variant="outline" onClick={() => exportDocx(report, stats, month)}>
+                <Download className="mr-2 h-4 w-4" /> .docx
+              </Button>
+              <Button variant="outline" onClick={() => exportPdf(report, stats, month)}>
+                <FileText className="mr-2 h-4 w-4" /> .pdf
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -227,6 +303,12 @@ function ReportsPage() {
                     <div className="text-sm font-medium capitalize">{label}</div>
                     <div className="text-xs text-muted-foreground">Généré le {new Date(h.created_at).toLocaleString("fr-FR")} · {h.stats?.documents?.count ?? 0} docs · {h.stats?.meetings?.count ?? 0} réunions</div>
                   </button>
+                  <Button variant="ghost" size="sm" onClick={() => exportPdf(h.report, h.stats, h.month)} aria-label="Télécharger PDF" title="Télécharger PDF">
+                    <FileText className="mr-1 h-4 w-4" /> PDF
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => exportDocx(h.report, h.stats, h.month)} aria-label="Télécharger DOCX" title="Télécharger DOCX">
+                    <Download className="mr-1 h-4 w-4" /> DOCX
+                  </Button>
                   <Button variant="ghost" size="icon" onClick={() => removeHistory(h.id)} aria-label="Supprimer">
                     <Trash2 className="h-4 w-4 text-muted-foreground" />
                   </Button>
