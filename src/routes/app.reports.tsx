@@ -1,9 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { FileBarChart, Loader2, Download, Sparkles } from "lucide-react";
+import { FileBarChart, Loader2, Download, Sparkles, History, Trash2 } from "lucide-react";
 import { Document, Packer, Paragraph, HeadingLevel, TextRun, Table, TableRow, TableCell, WidthType } from "docx";
 
 export const Route = createFileRoute("/app/reports")({
