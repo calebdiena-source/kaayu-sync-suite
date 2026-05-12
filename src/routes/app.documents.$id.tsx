@@ -5,7 +5,7 @@ import StarterKit from "@tiptap/starter-kit";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Save, Download, History, Share2, RotateCcw, FileText } from "lucide-react";
+import { ArrowLeft, Save, Download, History, Share2, RotateCcw, FileText, Bold, Italic, List, ListOrdered } from "lucide-react";
 import { toast } from "sonner";
 import { ShareDocumentDialog } from "@/components/share-document-dialog";
 import { exportTextToPDF } from "@/lib/exports";
