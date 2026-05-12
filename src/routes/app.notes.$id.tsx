@@ -1,23 +1,14 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEditor, EditorContent } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
-import Underline from "@tiptap/extension-underline";
-import TextAlign from "@tiptap/extension-text-align";
-import { TextStyle, FontSize } from "@tiptap/extension-text-style";
-import FontFamily from "@tiptap/extension-font-family";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  ArrowLeft, Bold, Italic, Underline as UnderlineIcon, List, ListOrdered,
-  AlignLeft, AlignCenter, AlignRight, AlignJustify,
-  Undo, Redo, Trash2, Download, Pin, Cloud, CloudOff, Loader2,
-} from "lucide-react";
+import { ArrowLeft, Trash2, Download, Pin, Cloud, CloudOff, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { exportTextToPDF } from "@/lib/exports";
 import { Document, Packer, Paragraph, HeadingLevel, TextRun } from "docx";
+import { RichTextEditor } from "@/components/rich-text-editor";
 
 export const Route = createFileRoute("/app/notes/$id")({
   head: () => ({ meta: [{ title: "Note — Kaayu" }] }),
@@ -36,6 +27,12 @@ type Note = {
 
 const cacheKey = (id: string) => `note-cache:${id}`;
 const pendingKey = (id: string) => `note-pending:${id}`;
+
+function htmlToText(html: string): string {
+  const el = document.createElement("div");
+  el.innerHTML = html;
+  return el.textContent ?? "";
+}
 
 async function htmlToDocxBlob(title: string, html: string): Promise<Blob> {
   const container = document.createElement("div");
@@ -77,25 +74,16 @@ function NoteEditorPage() {
   const navigate = useNavigate();
   const [note, setNote] = useState<Note | null>(null);
   const [title, setTitle] = useState("");
+  const [html, setHtml] = useState<string>("<p></p>");
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "offline">("idle");
   const [online, setOnline] = useState(typeof navigator === "undefined" ? true : navigator.onLine);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedRef = useRef<{ title: string; content: string } | null>(null);
-
-  const editor = useEditor({
-    extensions: [
-      StarterKit,
-      Underline,
-      TextStyle,
-      FontSize,
-      FontFamily,
-      TextAlign.configure({ types: ["heading", "paragraph"] }),
-    ],
-    content: "",
-    editorProps: { attributes: { class: "prose prose-sm sm:prose-base dark:prose-invert max-w-none min-h-[70vh] focus:outline-none px-6 py-8 sm:px-12" } },
-    onUpdate: () => scheduleSave(),
-  });
+  const titleRef = useRef(title);
+  const htmlRef = useRef(html);
+  titleRef.current = title;
+  htmlRef.current = html;
 
   // Online/offline listeners
   useEffect(() => {
@@ -109,18 +97,15 @@ function NoteEditorPage() {
 
   // Load note
   useEffect(() => {
-    if (!user || !editor) return;
+    if (!user) return;
     let cancelled = false;
     (async () => {
       setLoading(true);
-      // Hydrate from cache first
       const cached = localStorage.getItem(cacheKey(id));
       if (cached) {
         try {
           const c = JSON.parse(cached) as Note;
-          if (!cancelled) {
-            setNote(c); setTitle(c.title); editor.commands.setContent(c.content || "<p></p>");
-          }
+          if (!cancelled) { setNote(c); setTitle(c.title); setHtml(c.content || "<p></p>"); }
         } catch {}
       }
       const { data, error } = await supabase.from("notes").select("*").eq("id", id).maybeSingle();
@@ -128,17 +113,15 @@ function NoteEditorPage() {
       if (error) { toast.error(error.message); setLoading(false); return; }
       if (!data) { toast.error("Note introuvable"); navigate({ to: "/app/notes" }); return; }
       const n = data as Note;
-      setNote(n); setTitle(n.title);
-      editor.commands.setContent(n.content || "<p></p>");
+      setNote(n); setTitle(n.title); setHtml(n.content || "<p></p>");
       lastSavedRef.current = { title: n.title, content: n.content };
       localStorage.setItem(cacheKey(id), JSON.stringify(n));
       setLoading(false);
-      // Flush any pending offline edits
       flushPending();
     })();
     return () => { cancelled = true; };
     // eslint-disable-next-line
-  }, [id, user?.id, editor]);
+  }, [id, user?.id]);
 
   const scheduleSave = () => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
@@ -146,15 +129,13 @@ function NoteEditorPage() {
   };
 
   const save = async () => {
-    if (!editor || !note) return;
-    const content = editor.getHTML();
-    const newTitle = title.trim() || "Sans titre";
+    if (!note) return;
+    const content = htmlRef.current;
+    const newTitle = titleRef.current.trim() || "Sans titre";
     if (lastSavedRef.current && lastSavedRef.current.title === newTitle && lastSavedRef.current.content === content) return;
     setStatus("saving");
-    // Update cache immediately
     const updated = { ...note, title: newTitle, content, updated_at: new Date().toISOString() };
     localStorage.setItem(cacheKey(id), JSON.stringify(updated));
-
     if (!navigator.onLine) {
       localStorage.setItem(pendingKey(id), JSON.stringify({ title: newTitle, content }));
       setStatus("offline");
@@ -187,8 +168,8 @@ function NoteEditorPage() {
     } catch {}
   };
 
-  // Save on title change
-  useEffect(() => { if (!loading) scheduleSave(); /* eslint-disable-next-line */ }, [title]);
+  // Save on title or content change
+  useEffect(() => { if (!loading) scheduleSave(); /* eslint-disable-next-line */ }, [title, html]);
 
   // Save on unmount
   useEffect(() => () => { void save(); /* eslint-disable-next-line */ }, []);
@@ -211,8 +192,7 @@ function NoteEditorPage() {
   };
 
   const downloadDocx = async () => {
-    if (!editor) return;
-    const blob = await htmlToDocxBlob(title || "Note", editor.getHTML());
+    const blob = await htmlToDocxBlob(title || "Note", html);
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url; a.download = `${title || "Note"}.docx`; a.click();
@@ -220,18 +200,12 @@ function NoteEditorPage() {
   };
 
   const downloadPdf = () => {
-    exportTextToPDF(`${title || "Note"}.pdf`, title || "Note", editor?.getText() ?? "");
+    exportTextToPDF(`${title || "Note"}.pdf`, title || "Note", htmlToText(html));
   };
 
-  if (!editor || loading || !note) {
+  if (loading || !note) {
     return <div className="flex items-center justify-center p-12 text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Chargement…</div>;
   }
-
-  const ToolbarBtn = ({ onClick, active, children }: { onClick: () => void; active?: boolean; children: React.ReactNode }) => (
-    <button type="button" onClick={onClick} className={`rounded-md p-2 text-sm hover:bg-accent ${active ? "bg-accent text-accent-foreground" : ""}`}>
-      {children}
-    </button>
-  );
 
   const StatusBadge = () => {
     if (!online || status === "offline") return <span className="flex items-center gap-1 text-xs text-amber-600"><CloudOff className="h-3.5 w-3.5" /> Hors-ligne</span>;
@@ -257,7 +231,7 @@ function NoteEditorPage() {
         </div>
       </div>
 
-      <div className="rounded-xl border bg-card">
+      <div className="overflow-hidden rounded-xl border bg-card">
         <div className="border-b p-3">
           <Input
             value={title}
@@ -270,75 +244,7 @@ function NoteEditorPage() {
             <span>Modifié le {new Date(note.updated_at).toLocaleString("fr-FR")}</span>
           </div>
         </div>
-
-        <div className="sticky top-0 z-10 flex flex-wrap items-center gap-1 border-b bg-muted/30 p-2 backdrop-blur">
-          <select
-            className="h-8 rounded-md border bg-background px-2 text-xs"
-            value={
-              editor.isActive("heading", { level: 1 }) ? "h1" :
-              editor.isActive("heading", { level: 2 }) ? "h2" :
-              editor.isActive("heading", { level: 3 }) ? "h3" : "p"
-            }
-            onChange={(e) => {
-              const v = e.target.value;
-              if (v === "p") editor.chain().focus().setParagraph().run();
-              else editor.chain().focus().toggleHeading({ level: Number(v.slice(1)) as 1 | 2 | 3 }).run();
-            }}
-          >
-            <option value="p">Paragraphe</option>
-            <option value="h1">Titre 1</option>
-            <option value="h2">Titre 2</option>
-            <option value="h3">Titre 3</option>
-          </select>
-          <select
-            className="h-8 rounded-md border bg-background px-2 text-xs"
-            value={(editor.getAttributes("textStyle").fontSize as string) || ""}
-            onChange={(e) => {
-              const v = e.target.value;
-              if (!v) (editor.chain().focus() as any).unsetFontSize().run();
-              else (editor.chain().focus() as any).setFontSize(v).run();
-            }}
-          >
-            <option value="">Taille</option>
-            {["12px", "14px", "16px", "18px", "20px", "24px", "30px", "36px", "48px"].map((s) => (
-              <option key={s} value={s}>{s}</option>
-            ))}
-          </select>
-          <select
-            className="h-8 rounded-md border bg-background px-2 text-xs"
-            value={(editor.getAttributes("textStyle").fontFamily as string) || ""}
-            onChange={(e) => {
-              const v = e.target.value;
-              if (!v) editor.chain().focus().unsetFontFamily().run();
-              else editor.chain().focus().setFontFamily(v).run();
-            }}
-          >
-            <option value="">Police</option>
-            <option value="Inter, sans-serif">Inter</option>
-            <option value="Georgia, serif">Georgia</option>
-            <option value="Times New Roman, serif">Times</option>
-            <option value="Courier New, monospace">Courier</option>
-            <option value="Arial, sans-serif">Arial</option>
-          </select>
-          <span className="mx-1 h-5 w-px bg-border" />
-          <ToolbarBtn onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive("bold")}><Bold className="h-4 w-4" /></ToolbarBtn>
-          <ToolbarBtn onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive("italic")}><Italic className="h-4 w-4" /></ToolbarBtn>
-          <ToolbarBtn onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive("underline")}><UnderlineIcon className="h-4 w-4" /></ToolbarBtn>
-          <span className="mx-1 h-5 w-px bg-border" />
-          <ToolbarBtn onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive("bulletList")}><List className="h-4 w-4" /></ToolbarBtn>
-          <ToolbarBtn onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive("orderedList")}><ListOrdered className="h-4 w-4" /></ToolbarBtn>
-          <span className="mx-1 h-5 w-px bg-border" />
-          <ToolbarBtn onClick={() => editor.chain().focus().setTextAlign("left").run()} active={editor.isActive({ textAlign: "left" })}><AlignLeft className="h-4 w-4" /></ToolbarBtn>
-          <ToolbarBtn onClick={() => editor.chain().focus().setTextAlign("center").run()} active={editor.isActive({ textAlign: "center" })}><AlignCenter className="h-4 w-4" /></ToolbarBtn>
-          <ToolbarBtn onClick={() => editor.chain().focus().setTextAlign("right").run()} active={editor.isActive({ textAlign: "right" })}><AlignRight className="h-4 w-4" /></ToolbarBtn>
-          <ToolbarBtn onClick={() => editor.chain().focus().setTextAlign("justify").run()} active={editor.isActive({ textAlign: "justify" })}><AlignJustify className="h-4 w-4" /></ToolbarBtn>
-          <div className="ml-auto flex gap-1">
-            <ToolbarBtn onClick={() => editor.chain().focus().undo().run()}><Undo className="h-4 w-4" /></ToolbarBtn>
-            <ToolbarBtn onClick={() => editor.chain().focus().redo().run()}><Redo className="h-4 w-4" /></ToolbarBtn>
-          </div>
-        </div>
-
-        <EditorContent editor={editor} />
+        <RichTextEditor value={html} onChange={setHtml} placeholder="Commencez à écrire votre note…" />
       </div>
     </div>
   );
