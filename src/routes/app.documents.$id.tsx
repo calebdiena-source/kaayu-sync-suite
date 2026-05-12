@@ -79,7 +79,15 @@ function DocumentPage() {
   const [canEdit, setCanEdit] = useState(false);
 
   const editor = useEditor({
-    extensions: [StarterKit],
+    extensions: [
+      StarterKit,
+      Underline,
+      TextStyle,
+      Color,
+      FontSize,
+      FontFamily,
+      TextAlign.configure({ types: ["heading", "paragraph"] }),
+    ],
     content: "",
     editorProps: { attributes: { class: "prose prose-sm max-w-none min-h-[400px] focus:outline-none p-4" } },
   });
