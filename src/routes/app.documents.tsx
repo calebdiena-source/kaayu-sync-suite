@@ -112,29 +112,36 @@ function DocsPage() {
     window.open(data.signedUrl, "_blank");
   };
 
-  const createTextDoc = async () => {
+  const submitNote = async () => {
     if (!user) return;
-    const name = prompt("Nom de la note :", "Nouvelle note.docx");
-    if (!name) return;
-    const finalName = /\.docx$/i.test(name) ? name : `${name}.docx`;
-    const path = `${user.id}/${Date.now()}-${finalName}`;
-    const rates = await fetchLatestRates();
-    const headerText = buildRateHeaderText(rates);
-    const blob = await buildInitialDocxBlob(finalName.replace(/\.docx$/i, ""), headerText);
-    const { error: upErr } = await supabase.storage.from("documents").upload(path, blob, { contentType: DOCX_MIME });
-    if (upErr) return toast.error(upErr.message);
-    const { data, error } = await supabase.from("documents").insert({
-      user_id: user.id, name: finalName, storage_path: path, mime_type: DOCX_MIME, size_bytes: blob.size, folder_id: folderId,
-    }).select().single();
-    if (error) return toast.error(error.message);
-    // Stamp the rate header on the initial version row so AI monthly reports can read it
-    await supabase.from("document_versions").insert({
-      document_id: data.id, version_number: 1, storage_path: path,
-      size_bytes: blob.size, mime_type: DOCX_MIME, created_by: user.id,
-      comment: headerText,
-    });
-    toast.success("Note créée");
-    navigate({ to: "/app/documents/$id", params: { id: data.id } });
+    const raw = noteName.trim() || "Nouvelle note";
+    const finalName = /\.docx$/i.test(raw) ? raw : `${raw}.docx`;
+    setCreatingNote(true);
+    try {
+      const path = `${user.id}/${Date.now()}-${finalName}`;
+      const rates = await fetchLatestRates();
+      const headerText = buildRateHeaderText(rates);
+      const blob = await buildInitialDocxBlob(finalName.replace(/\.docx$/i, ""), headerText);
+      const { error: upErr } = await supabase.storage.from("documents").upload(path, blob, { contentType: DOCX_MIME });
+      if (upErr) throw upErr;
+      const { data, error } = await supabase.from("documents").insert({
+        user_id: user.id, name: finalName, storage_path: path, mime_type: DOCX_MIME, size_bytes: blob.size, folder_id: folderId,
+      }).select().single();
+      if (error) throw error;
+      await supabase.from("document_versions").insert({
+        document_id: data.id, version_number: 1, storage_path: path,
+        size_bytes: blob.size, mime_type: DOCX_MIME, created_by: user.id,
+        comment: headerText,
+      });
+      toast.success("Note créée");
+      setNoteOpen(false);
+      setNoteName("");
+      navigate({ to: "/app/documents/$id", params: { id: data.id } });
+    } catch (e: any) {
+      toast.error(e.message ?? "Erreur lors de la création");
+    } finally {
+      setCreatingNote(false);
+    }
   };
 
   const exportList = (format: "csv" | "pdf") => {
