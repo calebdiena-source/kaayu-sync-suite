@@ -37,6 +37,7 @@ type Folder = { id: string; name: string };
 
 function DocsPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [docs, setDocs] = useState<Doc[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [folderId, setFolderId] = useState<string | null>(null);
