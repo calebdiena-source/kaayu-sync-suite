@@ -10,6 +10,7 @@ import { exportTextToPDF } from "@/lib/exports";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import mammoth from "mammoth/mammoth.browser";
 import { Document, Packer, Paragraph, HeadingLevel, TextRun } from "docx";
+import { buildRateHeaderHtml, buildRateHeaderText, fetchLatestRates, replaceRateHeaderHtml } from "@/lib/rate-header";
 
 export const Route = createFileRoute("/app/documents/$id")({
   head: () => ({ meta: [{ title: "Document — Kaayu" }] }),
@@ -102,7 +103,9 @@ function DocumentPage() {
           }
         } else if (isTextualDoc(d)) {
           const text = await blob.text();
-          setHtml(text || "<p></p>");
+          // Ensure rate header is present at the very top for textual docs
+          const hasHeader = /data-rate-header="1"/.test(text);
+          setHtml(hasHeader ? text : (buildRateHeaderHtml(await fetchLatestRates()) + (text || "<p></p>")));
         }
       }
       setLoaded(true);
@@ -125,17 +128,28 @@ function DocumentPage() {
           size_bytes: currentBlob.size, mime_type: doc.mime_type, created_by: user.id, comment: "Avant modification",
         });
       }
+      // Refresh rate-of-the-day header at the very top before persisting
+      const rates = await fetchLatestRates();
+      const now = new Date();
+      const headerText = buildRateHeaderText(rates, now);
+      const htmlWithHeader = replaceRateHeaderHtml(html, rates, now);
+      setHtml(htmlWithHeader);
       let blob: Blob; let mime: string;
       if (isDocx(doc)) {
-        blob = await htmlToDocxBlob(doc.name.replace(/\.docx$/i, ""), html);
+        blob = await htmlToDocxBlob(doc.name.replace(/\.docx$/i, ""), htmlWithHeader);
         mime = DOCX_MIME;
       } else {
-        blob = new Blob([html], { type: "text/html" });
+        blob = new Blob([htmlWithHeader], { type: "text/html" });
         mime = "text/html";
       }
       const { error: upErr } = await supabase.storage.from("documents").upload(doc.storage_path, blob, { upsert: true, contentType: mime });
       if (upErr) throw upErr;
       await supabase.from("documents").update({ size_bytes: blob.size, mime_type: mime }).eq("id", doc.id);
+      // Stamp the new live version with its rate header so monthly reports can compare
+      await supabase.from("document_versions").insert({
+        document_id: doc.id, version_number: nextVersion + 1, storage_path: doc.storage_path,
+        size_bytes: blob.size, mime_type: mime, created_by: user.id, comment: headerText,
+      });
       toast.success("Document enregistré");
       loadVersions();
     } catch (e: any) { toast.error(e.message); }

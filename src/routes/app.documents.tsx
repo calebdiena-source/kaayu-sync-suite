@@ -8,21 +8,20 @@ import { toast } from "sonner";
 import { exportRowsToCSV, exportRowsToPDF } from "@/lib/exports";
 import { ShareDocumentDialog } from "@/components/share-document-dialog";
 import { Document, Packer, Paragraph, HeadingLevel, TextRun } from "docx";
+import { buildRateHeaderText, fetchLatestRates } from "@/lib/rate-header";
 
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
-async function buildInitialDocxBlob(title: string, rates: { rate_date: string; usd_to_fc: number | null; eur_to_usd: number | null; chf_to_usd: number | null } | null): Promise<Blob> {
+async function buildInitialDocxBlob(title: string, headerText: string): Promise<Blob> {
+  const headerLines = headerText.split("\n").map(
+    (line) => new Paragraph({ children: [new TextRun({ text: line, font: "Courier New", size: 18 })] })
+  );
   const children: Paragraph[] = [
+    ...headerLines,
+    new Paragraph({ children: [] }),
     new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: title, bold: true })] }),
+    new Paragraph({ children: [new TextRun("")] }),
   ];
-  if (rates) {
-    children.push(new Paragraph({ heading: HeadingLevel.HEADING_3, children: [new TextRun({ text: `Taux de change — ${rates.rate_date}`, bold: true })] }));
-    children.push(new Paragraph({ children: [new TextRun(`USD → FC : ${rates.usd_to_fc ?? "—"}`)] }));
-    children.push(new Paragraph({ children: [new TextRun(`EUR → USD : ${rates.eur_to_usd ?? "—"}`)] }));
-    children.push(new Paragraph({ children: [new TextRun(`CHF → USD : ${rates.chf_to_usd ?? "—"}`)] }));
-    children.push(new Paragraph({ children: [] }));
-  }
-  children.push(new Paragraph({ children: [new TextRun("")] }));
   const doc = new Document({ sections: [{ children }] });
   return await Packer.toBlob(doc);
 }
@@ -64,15 +63,23 @@ function DocsPage() {
     if (!files || !user) return;
     setUploading(true);
     try {
+      const rates = await fetchLatestRates();
+      const headerText = buildRateHeaderText(rates);
       for (const file of Array.from(files)) {
         const path = `${user.id}/${Date.now()}-${file.name}`;
         const { error: upErr } = await supabase.storage.from("documents").upload(path, file);
         if (upErr) throw upErr;
-        const { error: dbErr } = await supabase.from("documents").insert({
+        const { data: docRow, error: dbErr } = await supabase.from("documents").insert({
           user_id: user.id, name: file.name, storage_path: path,
           mime_type: file.type, size_bytes: file.size, folder_id: folderId,
-        });
+        }).select().single();
         if (dbErr) throw dbErr;
+        // Persist the rate-of-the-day header for AI monthly reports
+        await supabase.from("document_versions").insert({
+          document_id: docRow.id, version_number: 1, storage_path: path,
+          size_bytes: file.size, mime_type: file.type, created_by: user.id,
+          comment: headerText,
+        });
       }
       toast.success("Fichier(s) téléversé(s)");
       load();
@@ -106,20 +113,21 @@ function DocsPage() {
     if (!name) return;
     const finalName = /\.docx$/i.test(name) ? name : `${name}.docx`;
     const path = `${user.id}/${Date.now()}-${finalName}`;
-    const today = new Date().toISOString().slice(0, 10);
-    const { data: rates } = await supabase
-      .from("exchange_rates")
-      .select("rate_date, usd_to_fc, eur_to_usd, chf_to_usd")
-      .order("rate_date", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    const blob = await buildInitialDocxBlob(finalName.replace(/\.docx$/i, ""), rates ?? { rate_date: today, usd_to_fc: null, eur_to_usd: null, chf_to_usd: null });
+    const rates = await fetchLatestRates();
+    const headerText = buildRateHeaderText(rates);
+    const blob = await buildInitialDocxBlob(finalName.replace(/\.docx$/i, ""), headerText);
     const { error: upErr } = await supabase.storage.from("documents").upload(path, blob, { contentType: DOCX_MIME });
     if (upErr) return toast.error(upErr.message);
     const { data, error } = await supabase.from("documents").insert({
       user_id: user.id, name: finalName, storage_path: path, mime_type: DOCX_MIME, size_bytes: blob.size, folder_id: folderId,
     }).select().single();
     if (error) return toast.error(error.message);
+    // Stamp the rate header on the initial version row so AI monthly reports can read it
+    await supabase.from("document_versions").insert({
+      document_id: data.id, version_number: 1, storage_path: path,
+      size_bytes: blob.size, mime_type: DOCX_MIME, created_by: user.id,
+      comment: headerText,
+    });
     toast.success("Note créée");
     navigate({ to: "/app/documents/$id", params: { id: data.id } });
   };
