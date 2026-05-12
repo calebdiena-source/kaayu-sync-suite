@@ -303,6 +303,12 @@ function ReportsPage() {
                     <div className="text-sm font-medium capitalize">{label}</div>
                     <div className="text-xs text-muted-foreground">Généré le {new Date(h.created_at).toLocaleString("fr-FR")} · {h.stats?.documents?.count ?? 0} docs · {h.stats?.meetings?.count ?? 0} réunions</div>
                   </button>
+                  <Button variant="ghost" size="sm" onClick={() => exportPdf(h.report, h.stats, h.month)} aria-label="Télécharger PDF" title="Télécharger PDF">
+                    <FileText className="mr-1 h-4 w-4" /> PDF
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => exportDocx(h.report, h.stats, h.month)} aria-label="Télécharger DOCX" title="Télécharger DOCX">
+                    <Download className="mr-1 h-4 w-4" /> DOCX
+                  </Button>
                   <Button variant="ghost" size="icon" onClick={() => removeHistory(h.id)} aria-label="Supprimer">
                     <Trash2 className="h-4 w-4 text-muted-foreground" />
                   </Button>
