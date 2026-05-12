@@ -45,28 +45,57 @@ function fmtBytes(n: number) {
   return `${(n / Math.pow(1024, i)).toFixed(1)} ${u[i]}`;
 }
 
+type HistoryItem = { id: string; month: string; created_at: string; stats: Stats; report: Report };
+
 function ReportsPage() {
+  const { user } = useAuth();
   const [month, setMonth] = useState(currentMonth());
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
   const [report, setReport] = useState<Report | null>(null);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [filterMonth, setFilterMonth] = useState<string>("");
 
   const monthLabel = useMemo(() => {
     const [y, m] = month.split("-").map(Number);
     return new Date(y, m - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
   }, [month]);
 
+  const loadHistory = async () => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from("monthly_reports")
+      .select("id,month,created_at,stats,report")
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (error) { console.error(error); return; }
+    setHistory((data ?? []) as any);
+  };
+
+  useEffect(() => { loadHistory(); }, [user?.id]);
+
   const generate = async () => {
     setLoading(true);
     setReport(null);
     setStats(null);
+    setActiveId(null);
     try {
       const { data, error } = await supabase.functions.invoke("monthly-report", { body: { month } });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       setStats(data.stats);
       setReport(data.report);
-      toast.success("Rapport généré");
+      if (user) {
+        const { data: saved } = await supabase
+          .from("monthly_reports")
+          .insert({ user_id: user.id, month, stats: data.stats, report: data.report })
+          .select("id")
+          .single();
+        if (saved?.id) setActiveId(saved.id);
+        loadHistory();
+      }
+      toast.success("Rapport généré et enregistré");
     } catch (e: any) {
       console.error(e);
       toast.error(e?.message || "Échec de la génération");
@@ -74,6 +103,24 @@ function ReportsPage() {
       setLoading(false);
     }
   };
+
+  const openHistory = (h: HistoryItem) => {
+    setMonth(h.month);
+    setStats(h.stats);
+    setReport(h.report);
+    setActiveId(h.id);
+  };
+
+  const removeHistory = async (id: string) => {
+    if (!confirm("Supprimer ce rapport ?")) return;
+    const { error } = await supabase.from("monthly_reports").delete().eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    if (activeId === id) { setReport(null); setStats(null); setActiveId(null); }
+    setHistory((h) => h.filter((x) => x.id !== id));
+    toast.success("Rapport supprimé");
+  };
+
+  const filteredHistory = filterMonth ? history.filter((h) => h.month === filterMonth) : history;
 
   const exportDocx = async () => {
     if (!report || !stats) return;
