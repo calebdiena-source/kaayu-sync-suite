@@ -1,9 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { FileBarChart, Loader2, Download, Sparkles } from "lucide-react";
+import { FileBarChart, Loader2, Download, Sparkles, History, Trash2 } from "lucide-react";
 import { Document, Packer, Paragraph, HeadingLevel, TextRun, Table, TableRow, TableCell, WidthType } from "docx";
 
 export const Route = createFileRoute("/app/reports")({
@@ -44,28 +45,57 @@ function fmtBytes(n: number) {
   return `${(n / Math.pow(1024, i)).toFixed(1)} ${u[i]}`;
 }
 
+type HistoryItem = { id: string; month: string; created_at: string; stats: Stats; report: Report };
+
 function ReportsPage() {
+  const { user } = useAuth();
   const [month, setMonth] = useState(currentMonth());
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
   const [report, setReport] = useState<Report | null>(null);
+  const [history, setHistory] = useState<HistoryItem[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [filterMonth, setFilterMonth] = useState<string>("");
 
   const monthLabel = useMemo(() => {
     const [y, m] = month.split("-").map(Number);
     return new Date(y, m - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
   }, [month]);
 
+  const loadHistory = async () => {
+    if (!user) return;
+    const { data, error } = await supabase
+      .from("monthly_reports")
+      .select("id,month,created_at,stats,report")
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (error) { console.error(error); return; }
+    setHistory((data ?? []) as any);
+  };
+
+  useEffect(() => { loadHistory(); }, [user?.id]);
+
   const generate = async () => {
     setLoading(true);
     setReport(null);
     setStats(null);
+    setActiveId(null);
     try {
       const { data, error } = await supabase.functions.invoke("monthly-report", { body: { month } });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       setStats(data.stats);
       setReport(data.report);
-      toast.success("Rapport généré");
+      if (user) {
+        const { data: saved } = await supabase
+          .from("monthly_reports")
+          .insert({ user_id: user.id, month, stats: data.stats, report: data.report })
+          .select("id")
+          .single();
+        if (saved?.id) setActiveId(saved.id);
+        loadHistory();
+      }
+      toast.success("Rapport généré et enregistré");
     } catch (e: any) {
       console.error(e);
       toast.error(e?.message || "Échec de la génération");
@@ -73,6 +103,24 @@ function ReportsPage() {
       setLoading(false);
     }
   };
+
+  const openHistory = (h: HistoryItem) => {
+    setMonth(h.month);
+    setStats(h.stats);
+    setReport(h.report);
+    setActiveId(h.id);
+  };
+
+  const removeHistory = async (id: string) => {
+    if (!confirm("Supprimer ce rapport ?")) return;
+    const { error } = await supabase.from("monthly_reports").delete().eq("id", id);
+    if (error) { toast.error(error.message); return; }
+    if (activeId === id) { setReport(null); setStats(null); setActiveId(null); }
+    setHistory((h) => h.filter((x) => x.id !== id));
+    toast.success("Rapport supprimé");
+  };
+
+  const filteredHistory = filterMonth ? history.filter((h) => h.month === filterMonth) : history;
 
   const exportDocx = async () => {
     if (!report || !stats) return;
@@ -158,9 +206,40 @@ function ReportsPage() {
         </div>
       </div>
 
+      <section className="rounded-lg border bg-card">
+        <header className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
+          <h2 className="flex items-center gap-2 text-sm font-semibold"><History className="h-4 w-4" /> Historique des rapports</h2>
+          <div className="flex items-center gap-2">
+            <input type="month" value={filterMonth} onChange={(e) => setFilterMonth(e.target.value)} className="rounded-md border bg-background px-2 py-1 text-xs" placeholder="Filtrer" />
+            {filterMonth && <button onClick={() => setFilterMonth("")} className="text-xs text-muted-foreground hover:text-foreground">Effacer</button>}
+          </div>
+        </header>
+        {filteredHistory.length === 0 ? (
+          <div className="px-4 py-6 text-center text-sm text-muted-foreground">Aucun rapport pour ce filtre.</div>
+        ) : (
+          <ul className="divide-y">
+            {filteredHistory.map((h) => {
+              const [hy, hm] = h.month.split("-").map(Number);
+              const label = new Date(hy, hm - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+              return (
+                <li key={h.id} className={`flex items-center gap-3 px-4 py-3 transition-colors ${activeId === h.id ? "bg-accent/50" : "hover:bg-accent/30"}`}>
+                  <button onClick={() => openHistory(h)} className="flex-1 text-left">
+                    <div className="text-sm font-medium capitalize">{label}</div>
+                    <div className="text-xs text-muted-foreground">Généré le {new Date(h.created_at).toLocaleString("fr-FR")} · {h.stats?.documents?.count ?? 0} docs · {h.stats?.meetings?.count ?? 0} réunions</div>
+                  </button>
+                  <Button variant="ghost" size="icon" onClick={() => removeHistory(h.id)} aria-label="Supprimer">
+                    <Trash2 className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
       {!report && !loading && (
         <div className="rounded-lg border border-dashed p-12 text-center text-sm text-muted-foreground">
-          Sélectionnez un mois et cliquez sur « Générer » pour produire le rapport IA.
+          Sélectionnez un mois et cliquez sur « Générer », ou ouvrez un rapport de l'historique.
         </div>
       )}
 

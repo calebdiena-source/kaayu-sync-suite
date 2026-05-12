@@ -388,6 +388,33 @@ export type Database = {
         }
         Relationships: []
       }
+      monthly_reports: {
+        Row: {
+          created_at: string
+          id: string
+          month: string
+          report: Json
+          stats: Json
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          month: string
+          report: Json
+          stats: Json
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          month?: string
+          report?: Json
+          stats?: Json
+          user_id?: string
+        }
+        Relationships: []
+      }
       notes: {
         Row: {
           content: string
