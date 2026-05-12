@@ -48,6 +48,9 @@ function DocsPage() {
   const [shareDocId, setShareDocId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [drag, setDrag] = useState(false);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [noteName, setNoteName] = useState("");
+  const [creatingNote, setCreatingNote] = useState(false);
 
   const load = async () => {
     if (!user) return;
