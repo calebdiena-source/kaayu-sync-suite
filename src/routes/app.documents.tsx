@@ -9,24 +9,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { toast } from "sonner";
 import { exportRowsToCSV, exportRowsToPDF } from "@/lib/exports";
 import { ShareDocumentDialog } from "@/components/share-document-dialog";
-import { Document, Packer, Paragraph, HeadingLevel, TextRun } from "docx";
 import { buildRateHeaderText, fetchLatestRates } from "@/lib/rate-header";
 
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-
-async function buildInitialDocxBlob(title: string, headerText: string): Promise<Blob> {
-  const headerLines = headerText.split("\n").map(
-    (line) => new Paragraph({ children: [new TextRun({ text: line, font: "Courier New", size: 18 })] })
-  );
-  const children: Paragraph[] = [
-    ...headerLines,
-    new Paragraph({ children: [] }),
-    new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: title, bold: true })] }),
-    new Paragraph({ children: [new TextRun("")] }),
-  ];
-  const doc = new Document({ sections: [{ children }] });
-  return await Packer.toBlob(doc);
-}
+void DOCX_MIME;
 
 export const Route = createFileRoute("/app/documents")({
   head: () => ({ meta: [{ title: "Documents — Kaayu" }] }),
