@@ -121,7 +121,7 @@ function DocsPage() {
     }).select().single();
     if (error) return toast.error(error.message);
     toast.success("Note créée");
-    window.location.href = `/app/documents/${data.id}`;
+    navigate({ to: "/app/documents/$id", params: { id: data.id } });
   };
 
   const exportList = (format: "csv" | "pdf") => {
