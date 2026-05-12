@@ -206,7 +206,7 @@ function DocsPage() {
                 {filtered.map((d) => (
                   <tr key={d.id} className="border-t hover:bg-muted/30">
                     <td className="px-3 py-2">
-                      <Link to="/app/documents/$id" params={{ id: d.id }} className="flex items-center gap-2 hover:underline">
+                      <Link to="/app/documents/editor/$id" params={{ id: d.id }} className="flex items-center gap-2 hover:underline">
                         <FileText className="h-4 w-4 text-primary" /> {d.name}
                       </Link>
                     </td>
