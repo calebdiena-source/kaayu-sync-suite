@@ -4,8 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { FileBarChart, Loader2, Download, Sparkles, History, Trash2 } from "lucide-react";
+import { FileBarChart, Loader2, Download, Sparkles, History, Trash2, FileText } from "lucide-react";
 import { Document, Packer, Paragraph, HeadingLevel, TextRun, Table, TableRow, TableCell, WidthType } from "docx";
+import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 
 export const Route = createFileRoute("/app/reports")({
   head: () => ({ meta: [{ title: "Rapports mensuels — Kaayu" }] }),
