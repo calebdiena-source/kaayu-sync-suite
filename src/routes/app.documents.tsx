@@ -252,6 +252,29 @@ function DocsPage() {
       {shareDocId && (
         <ShareDocumentDialog open={!!shareDocId} onOpenChange={(v) => !v && setShareDocId(null)} documentId={shareDocId} />
       )}
+
+      <Dialog open={noteOpen} onOpenChange={(v) => { if (!creatingNote) setNoteOpen(v); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Nouvelle note</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <label className="text-sm text-muted-foreground">Nom de la note</label>
+            <Input
+              autoFocus
+              value={noteName}
+              onChange={(e) => setNoteName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && !creatingNote) { e.preventDefault(); void submitNote(); } }}
+              placeholder="Ex: Réunion du 12 mai"
+            />
+            <p className="text-xs text-muted-foreground">L'extension .docx sera ajoutée automatiquement.</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNoteOpen(false)} disabled={creatingNote}>Annuler</Button>
+            <Button onClick={submitNote} disabled={creatingNote}>{creatingNote ? "Création…" : "OK"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
