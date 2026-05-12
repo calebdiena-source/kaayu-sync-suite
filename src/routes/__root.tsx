@@ -9,9 +9,8 @@ import {
 } from "@tanstack/react-router";
 
 import { Toaster } from "sonner";
+import { useEffect } from "react";
 
-import "@/lib/server-fn-auth.client";
-import "@/lib/pwa-register.client";
 import appCss from "../styles.css?url";
 
 function NotFoundComponent() {
@@ -123,6 +122,11 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  useEffect(() => {
+    void import("@/lib/server-fn-auth-client");
+    void import("@/lib/pwa-register-client");
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
