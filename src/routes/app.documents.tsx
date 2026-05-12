@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -37,6 +37,7 @@ type Folder = { id: string; name: string };
 
 function DocsPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [docs, setDocs] = useState<Doc[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [folderId, setFolderId] = useState<string | null>(null);
@@ -120,7 +121,7 @@ function DocsPage() {
     }).select().single();
     if (error) return toast.error(error.message);
     toast.success("Note créée");
-    window.location.href = `/app/documents/${data.id}`;
+    navigate({ to: "/app/documents/$id", params: { id: data.id } });
   };
 
   const exportList = (format: "csv" | "pdf") => {
