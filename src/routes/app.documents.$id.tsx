@@ -1,18 +1,13 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, useCallback } from "react";
-import { useEditor, EditorContent } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
-import Underline from "@tiptap/extension-underline";
-import { TextStyle, FontSize, Color } from "@tiptap/extension-text-style";
-import TextAlign from "@tiptap/extension-text-align";
-import FontFamily from "@tiptap/extension-font-family";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Save, Download, History, Share2, RotateCcw, FileText, Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, AlignLeft, AlignCenter, AlignRight, AlignJustify, Type, Palette } from "lucide-react";
+import { ArrowLeft, Save, Download, History, Share2, RotateCcw, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { ShareDocumentDialog } from "@/components/share-document-dialog";
 import { exportTextToPDF } from "@/lib/exports";
+import { RichTextEditor } from "@/components/rich-text-editor";
 import mammoth from "mammoth/mammoth.browser";
 import { Document, Packer, Paragraph, HeadingLevel, TextRun } from "docx";
 
@@ -27,11 +22,13 @@ type Version = { id: string; version_number: number; storage_path: string; creat
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 const TEXTUAL = ["text/html", "text/plain", "text/markdown"];
 
-function isDocx(d: Doc) {
-  return d.mime_type === DOCX_MIME || /\.docx$/i.test(d.name);
-}
-function isTextualDoc(d: Doc) {
-  return TEXTUAL.includes(d.mime_type ?? "") || /\.(html|txt|md)$/i.test(d.name);
+function isDocx(d: Doc) { return d.mime_type === DOCX_MIME || /\.docx$/i.test(d.name); }
+function isTextualDoc(d: Doc) { return TEXTUAL.includes(d.mime_type ?? "") || /\.(html|txt|md)$/i.test(d.name); }
+
+function htmlToText(html: string): string {
+  const el = document.createElement("div");
+  el.innerHTML = html;
+  return el.textContent ?? "";
 }
 
 async function htmlToDocxBlob(title: string, html: string): Promise<Blob> {
@@ -77,20 +74,7 @@ function DocumentPage() {
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [canEdit, setCanEdit] = useState(false);
-
-  const editor = useEditor({
-    extensions: [
-      StarterKit,
-      Underline,
-      TextStyle,
-      Color,
-      FontSize,
-      FontFamily,
-      TextAlign.configure({ types: ["heading", "paragraph"] }),
-    ],
-    content: "",
-    editorProps: { attributes: { class: "prose prose-sm max-w-none min-h-[400px] focus:outline-none p-4" } },
-  });
+  const [html, setHtml] = useState<string>("<p></p>");
 
   const editable = !!doc && (isTextualDoc(doc) || isDocx(doc));
 
@@ -112,22 +96,22 @@ function DocumentPage() {
           try {
             const arrayBuffer = await blob.arrayBuffer();
             const { value } = await mammoth.convertToHtml({ arrayBuffer });
-            editor?.commands.setContent(value || "<p></p>");
+            setHtml(value || "<p></p>");
           } catch (e: any) {
             toast.error("Impossible de lire le .docx: " + e.message);
           }
         } else if (isTextualDoc(d)) {
           const text = await blob.text();
-          editor?.commands.setContent(text || "<p></p>");
+          setHtml(text || "<p></p>");
         }
       }
       setLoaded(true);
       loadVersions();
     })();
-  }, [user?.id, id, editor, navigate, loadVersions]);
+  }, [user?.id, id, navigate, loadVersions]);
 
   const save = async () => {
-    if (!doc || !editor || !user) return;
+    if (!doc || !user) return;
     setSaving(true);
     try {
       const nextVersion = (versions[0]?.version_number ?? 0) + 1;
@@ -141,7 +125,6 @@ function DocumentPage() {
           size_bytes: currentBlob.size, mime_type: doc.mime_type, created_by: user.id, comment: "Avant modification",
         });
       }
-      const html = editor.getHTML();
       let blob: Blob; let mime: string;
       if (isDocx(doc)) {
         blob = await htmlToDocxBlob(doc.name.replace(/\.docx$/i, ""), html);
@@ -160,9 +143,9 @@ function DocumentPage() {
   };
 
   const downloadDocx = async () => {
-    if (!doc || !editor) return;
+    if (!doc) return;
     const baseName = doc.name.replace(/\.[^.]+$/, "");
-    const blob = await htmlToDocxBlob(baseName, editor.getHTML());
+    const blob = await htmlToDocxBlob(baseName, html);
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url; a.download = `${baseName}.docx`; a.click();
@@ -176,17 +159,16 @@ function DocumentPage() {
   };
 
   const restoreVersion = async (v: Version) => {
-    if (!doc || !editor) return;
+    if (!doc) return;
     if (!confirm(`Restaurer la version ${v.version_number} ?`)) return;
     const { data: blob } = await supabase.storage.from("documents").download(v.storage_path);
     if (!blob) return toast.error("Version introuvable");
     if (/\.docx$/i.test(v.storage_path)) {
       const arrayBuffer = await blob.arrayBuffer();
       const { value } = await mammoth.convertToHtml({ arrayBuffer });
-      editor.commands.setContent(value || "<p></p>");
+      setHtml(value || "<p></p>");
     } else {
-      const text = await blob.text();
-      editor.commands.setContent(text);
+      setHtml(await blob.text());
     }
     toast.success("Version restaurée — n'oubliez pas d'enregistrer");
     setTab("edit");
@@ -208,10 +190,8 @@ function DocumentPage() {
           )}
           {editable && (
             <>
-              <Button variant="outline" size="sm" onClick={downloadDocx}>
-                <Download className="mr-1 h-4 w-4" />DOCX
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => exportTextToPDF(`${doc.name.replace(/\.[^.]+$/, "")}.pdf`, doc.name, editor?.getText() ?? "")}>
+              <Button variant="outline" size="sm" onClick={downloadDocx}><Download className="mr-1 h-4 w-4" />DOCX</Button>
+              <Button variant="outline" size="sm" onClick={() => exportTextToPDF(`${doc.name.replace(/\.[^.]+$/, "")}.pdf`, doc.name, htmlToText(html))}>
                 <Download className="mr-1 h-4 w-4" />PDF
               </Button>
             </>
@@ -232,57 +212,9 @@ function DocumentPage() {
       </div>
 
       {tab === "edit" && (
-        <div className="rounded-xl border bg-card">
+        <div className="overflow-hidden rounded-xl border bg-card">
           {editable ? (
-            <>
-              {canEdit && (
-                <div className="flex flex-wrap items-center gap-1 border-b p-2">
-                  <Button size="sm" variant={editor?.isActive("bold") ? "secondary" : "ghost"} onClick={() => editor?.chain().focus().toggleBold().run()}><Bold className="h-4 w-4" /></Button>
-                  <Button size="sm" variant={editor?.isActive("italic") ? "secondary" : "ghost"} onClick={() => editor?.chain().focus().toggleItalic().run()}><Italic className="h-4 w-4" /></Button>
-                  <Button size="sm" variant={editor?.isActive("underline") ? "secondary" : "ghost"} onClick={() => editor?.chain().focus().toggleUnderline().run()}><UnderlineIcon className="h-4 w-4" /></Button>
-                  <div className="mx-1 h-5 w-px bg-border" />
-                  <div className="flex items-center gap-1">
-                    <Type className="h-4 w-4 text-muted-foreground" />
-                    <select
-                      className="h-8 rounded-md border bg-background px-2 text-xs"
-                      value={editor?.getAttributes("textStyle").fontSize ?? ""}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        if (!v) editor?.chain().focus().unsetFontSize().run();
-                        else editor?.chain().focus().setFontSize(v).run();
-                      }}
-                    >
-                      <option value="">Taille</option>
-                      {["12px","14px","16px","18px","20px","24px","30px","36px","48px"].map((s) => (
-                        <option key={s} value={s}>{s.replace("px","")}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Palette className="h-4 w-4 text-muted-foreground" />
-                    <input
-                      type="color"
-                      className="h-8 w-8 cursor-pointer rounded border bg-background"
-                      value={editor?.getAttributes("textStyle").color ?? "#000000"}
-                      onChange={(e) => editor?.chain().focus().setColor(e.target.value).run()}
-                      title="Couleur du texte"
-                    />
-                  </div>
-                  <div className="mx-1 h-5 w-px bg-border" />
-                  <Button size="sm" variant={editor?.isActive("bulletList") ? "secondary" : "ghost"} onClick={() => editor?.chain().focus().toggleBulletList().run()}><List className="h-4 w-4" /></Button>
-                  <Button size="sm" variant={editor?.isActive("orderedList") ? "secondary" : "ghost"} onClick={() => editor?.chain().focus().toggleOrderedList().run()}><ListOrdered className="h-4 w-4" /></Button>
-                  <div className="mx-1 h-5 w-px bg-border" />
-                  <Button size="sm" variant={editor?.isActive({ textAlign: "left" }) ? "secondary" : "ghost"} onClick={() => editor?.chain().focus().setTextAlign("left").run()}><AlignLeft className="h-4 w-4" /></Button>
-                  <Button size="sm" variant={editor?.isActive({ textAlign: "center" }) ? "secondary" : "ghost"} onClick={() => editor?.chain().focus().setTextAlign("center").run()}><AlignCenter className="h-4 w-4" /></Button>
-                  <Button size="sm" variant={editor?.isActive({ textAlign: "right" }) ? "secondary" : "ghost"} onClick={() => editor?.chain().focus().setTextAlign("right").run()}><AlignRight className="h-4 w-4" /></Button>
-                  <Button size="sm" variant={editor?.isActive({ textAlign: "justify" }) ? "secondary" : "ghost"} onClick={() => editor?.chain().focus().setTextAlign("justify").run()}><AlignJustify className="h-4 w-4" /></Button>
-                  <div className="mx-1 h-5 w-px bg-border" />
-                  <Button size="sm" variant={editor?.isActive("heading", { level: 1 }) ? "secondary" : "ghost"} onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}>H1</Button>
-                  <Button size="sm" variant={editor?.isActive("heading", { level: 2 }) ? "secondary" : "ghost"} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}>H2</Button>
-                </div>
-              )}
-              <EditorContent editor={editor} />
-            </>
+            <RichTextEditor value={html} onChange={setHtml} editable={canEdit} placeholder="Commencez à écrire votre document…" />
           ) : (
             <div className="p-8 text-center text-sm text-muted-foreground">
               Aperçu non disponible pour ce type de fichier ({doc.mime_type ?? "inconnu"}).
