@@ -9,24 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { toast } from "sonner";
 import { exportRowsToCSV, exportRowsToPDF } from "@/lib/exports";
 import { ShareDocumentDialog } from "@/components/share-document-dialog";
-import { Document, Packer, Paragraph, HeadingLevel, TextRun } from "docx";
 import { buildRateHeaderText, fetchLatestRates } from "@/lib/rate-header";
-
-const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-
-async function buildInitialDocxBlob(title: string, headerText: string): Promise<Blob> {
-  const headerLines = headerText.split("\n").map(
-    (line) => new Paragraph({ children: [new TextRun({ text: line, font: "Courier New", size: 18 })] })
-  );
-  const children: Paragraph[] = [
-    ...headerLines,
-    new Paragraph({ children: [] }),
-    new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: title, bold: true })] }),
-    new Paragraph({ children: [new TextRun("")] }),
-  ];
-  const doc = new Document({ sections: [{ children }] });
-  return await Packer.toBlob(doc);
-}
 
 export const Route = createFileRoute("/app/documents")({
   head: () => ({ meta: [{ title: "Documents — Kaayu" }] }),
@@ -112,36 +95,16 @@ function DocsPage() {
     window.open(data.signedUrl, "_blank");
   };
 
-  const submitNote = async () => {
-    if (!user) return;
+  const submitNote = () => {
     const raw = noteName.trim() || "Nouvelle note";
     const finalName = /\.docx$/i.test(raw) ? raw : `${raw}.docx`;
-    setCreatingNote(true);
-    try {
-      const path = `${user.id}/${Date.now()}-${finalName}`;
-      const rates = await fetchLatestRates();
-      const headerText = buildRateHeaderText(rates);
-      const blob = await buildInitialDocxBlob(finalName.replace(/\.docx$/i, ""), headerText);
-      const { error: upErr } = await supabase.storage.from("documents").upload(path, blob, { contentType: DOCX_MIME });
-      if (upErr) throw upErr;
-      const { data, error } = await supabase.from("documents").insert({
-        user_id: user.id, name: finalName, storage_path: path, mime_type: DOCX_MIME, size_bytes: blob.size, folder_id: folderId,
-      }).select().single();
-      if (error) throw error;
-      await supabase.from("document_versions").insert({
-        document_id: data.id, version_number: 1, storage_path: path,
-        size_bytes: blob.size, mime_type: DOCX_MIME, created_by: user.id,
-        comment: headerText,
-      });
-      toast.success("Note créée");
-      setNoteOpen(false);
-      setNoteName("");
-      navigate({ to: "/app/documents/$id", params: { id: data.id } });
-    } catch (e: any) {
-      toast.error(e.message ?? "Erreur lors de la création");
-    } finally {
-      setCreatingNote(false);
-    }
+    setNoteOpen(false);
+    setNoteName("");
+    navigate({
+      to: "/app/documents/editor/$id",
+      params: { id: "new" },
+      search: { name: finalName },
+    });
   };
 
   const exportList = (format: "csv" | "pdf") => {
@@ -226,7 +189,7 @@ function DocsPage() {
                 {filtered.map((d) => (
                   <tr key={d.id} className="border-t hover:bg-muted/30">
                     <td className="px-3 py-2">
-                      <Link to="/app/documents/$id" params={{ id: d.id }} className="flex items-center gap-2 hover:underline">
+                      <Link to="/app/documents/editor/$id" params={{ id: d.id }} className="flex items-center gap-2 hover:underline">
                         <FileText className="h-4 w-4 text-primary" /> {d.name}
                       </Link>
                     </td>
