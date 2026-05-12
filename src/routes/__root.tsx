@@ -9,9 +9,8 @@ import {
 } from "@tanstack/react-router";
 
 import { Toaster } from "sonner";
+import { useEffect } from "react";
 
-import "@/lib/server-fn-auth.client";
-import "@/lib/pwa-register.client";
 import appCss from "../styles.css?url";
 
 function NotFoundComponent() {
