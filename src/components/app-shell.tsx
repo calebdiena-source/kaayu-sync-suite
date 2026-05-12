@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import {
   LayoutDashboard, FolderOpen, Users2, CalendarDays, ListTodo,
-  Settings, LogOut, Sparkles, ScanLine, Cloud, Menu, X, Sun, Moon
+  Settings, LogOut, Sparkles, ScanLine, Cloud, Menu, X, Sun, Moon, FileBarChart
 } from "lucide-react";
 import { NotificationsPopover } from "@/components/notifications-popover";
 import { useEffect, useState } from "react";
@@ -19,6 +19,7 @@ const NAV = [
   { to: "/app/calendar", label: "Calendrier", icon: CalendarDays },
   { to: "/app/tasks", label: "Tâches", icon: ListTodo },
   { to: "/app/ocr", label: "OCR & IA", icon: ScanLine },
+  { to: "/app/reports", label: "Rapports IA", icon: FileBarChart },
   { to: "/app/settings", label: "Paramètres", icon: Settings },
 ] as const;
 

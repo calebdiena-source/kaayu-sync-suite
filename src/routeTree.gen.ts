@@ -15,6 +15,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as AppTasksRouteImport } from './routes/app.tasks'
 import { Route as AppSettingsRouteImport } from './routes/app.settings'
+import { Route as AppReportsRouteImport } from './routes/app.reports'
 import { Route as AppOcrRouteImport } from './routes/app.ocr'
 import { Route as AppNotesRouteImport } from './routes/app.notes'
 import { Route as AppMeetingsRouteImport } from './routes/app.meetings'
@@ -53,6 +54,11 @@ const AppTasksRoute = AppTasksRouteImport.update({
 const AppSettingsRoute = AppSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppReportsRoute = AppReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
   getParentRoute: () => AppRoute,
 } as any)
 const AppOcrRoute = AppOcrRouteImport.update({
@@ -111,6 +117,7 @@ export interface FileRoutesByFullPath {
   '/app/meetings': typeof AppMeetingsRoute
   '/app/notes': typeof AppNotesRouteWithChildren
   '/app/ocr': typeof AppOcrRoute
+  '/app/reports': typeof AppReportsRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/tasks': typeof AppTasksRoute
   '/app/': typeof AppIndexRoute
@@ -127,6 +134,7 @@ export interface FileRoutesByTo {
   '/app/meetings': typeof AppMeetingsRoute
   '/app/notes': typeof AppNotesRouteWithChildren
   '/app/ocr': typeof AppOcrRoute
+  '/app/reports': typeof AppReportsRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/tasks': typeof AppTasksRoute
   '/app': typeof AppIndexRoute
@@ -145,6 +153,7 @@ export interface FileRoutesById {
   '/app/meetings': typeof AppMeetingsRoute
   '/app/notes': typeof AppNotesRouteWithChildren
   '/app/ocr': typeof AppOcrRoute
+  '/app/reports': typeof AppReportsRoute
   '/app/settings': typeof AppSettingsRoute
   '/app/tasks': typeof AppTasksRoute
   '/app/': typeof AppIndexRoute
@@ -164,6 +173,7 @@ export interface FileRouteTypes {
     | '/app/meetings'
     | '/app/notes'
     | '/app/ocr'
+    | '/app/reports'
     | '/app/settings'
     | '/app/tasks'
     | '/app/'
@@ -180,6 +190,7 @@ export interface FileRouteTypes {
     | '/app/meetings'
     | '/app/notes'
     | '/app/ocr'
+    | '/app/reports'
     | '/app/settings'
     | '/app/tasks'
     | '/app'
@@ -197,6 +208,7 @@ export interface FileRouteTypes {
     | '/app/meetings'
     | '/app/notes'
     | '/app/ocr'
+    | '/app/reports'
     | '/app/settings'
     | '/app/tasks'
     | '/app/'
@@ -254,6 +266,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/app/settings'
       preLoaderRoute: typeof AppSettingsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/reports': {
+      id: '/app/reports'
+      path: '/reports'
+      fullPath: '/app/reports'
+      preLoaderRoute: typeof AppReportsRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/ocr': {
@@ -353,6 +372,7 @@ interface AppRouteChildren {
   AppMeetingsRoute: typeof AppMeetingsRoute
   AppNotesRoute: typeof AppNotesRouteWithChildren
   AppOcrRoute: typeof AppOcrRoute
+  AppReportsRoute: typeof AppReportsRoute
   AppSettingsRoute: typeof AppSettingsRoute
   AppTasksRoute: typeof AppTasksRoute
   AppIndexRoute: typeof AppIndexRoute
@@ -365,6 +385,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppMeetingsRoute: AppMeetingsRoute,
   AppNotesRoute: AppNotesRouteWithChildren,
   AppOcrRoute: AppOcrRoute,
+  AppReportsRoute: AppReportsRoute,
   AppSettingsRoute: AppSettingsRoute,
   AppTasksRoute: AppTasksRoute,
   AppIndexRoute: AppIndexRoute,
