@@ -124,8 +124,8 @@ function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
   useEffect(() => {
-    void import("@/lib/server-fn-auth.client");
-    void import("@/lib/pwa-register.client");
+    void import("@/lib/server-fn-auth-client");
+    void import("@/lib/pwa-register-client");
   }, []);
 
   return (
