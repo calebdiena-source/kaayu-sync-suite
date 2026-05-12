@@ -10,6 +10,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { AIAssistant } from "@/components/ai-assistant";
+import { useOnlineStatus } from "@/hooks/use-online-status";
 
 const NAV = [
   { to: "/app", label: "Tableau de bord", icon: LayoutDashboard },
@@ -111,7 +112,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <h1 className="text-base font-semibold tracking-tight">Bienvenue, {user.email?.split("@")[0]}</h1>
             <p className="text-xs text-muted-foreground">{new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p>
           </div>
-          <div className="ml-auto flex items-center gap-1">
+          <div className="ml-auto flex items-center gap-2">
+            <OnlineBadge />
             <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Thème">
               {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
@@ -127,5 +129,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <AIAssistant />
       {open && <div onClick={() => setOpen(false)} className="fixed inset-0 z-30 bg-foreground/30 backdrop-blur-sm lg:hidden" />}
     </div>
+  );
+}
+
+function OnlineBadge() {
+  const online = useOnlineStatus();
+  return (
+    <span
+      title={online ? "Connecté" : "Hors connexion"}
+      className={cn(
+        "hidden items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium sm:inline-flex",
+        online ? "bg-success/15 text-success" : "bg-warning/15 text-warning"
+      )}
+    >
+      <span className={cn("h-2 w-2 rounded-full", online ? "bg-success animate-pulse" : "bg-warning")} />
+      {online ? "En ligne" : "Hors connexion"}
+    </span>
   );
 }
