@@ -11,9 +11,6 @@ import { exportRowsToCSV, exportRowsToPDF } from "@/lib/exports";
 import { ShareDocumentDialog } from "@/components/share-document-dialog";
 import { buildRateHeaderText, fetchLatestRates } from "@/lib/rate-header";
 
-const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-void DOCX_MIME;
-
 export const Route = createFileRoute("/app/documents")({
   head: () => ({ meta: [{ title: "Documents — Kaayu" }] }),
   component: DocsPage,
