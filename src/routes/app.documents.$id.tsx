@@ -222,7 +222,21 @@ function DocumentPage() {
       {tab === "edit" && (
         <div className="rounded-xl border bg-card">
           {editable ? (
-            <EditorContent editor={editor} />
+            <>
+              {canEdit && (
+                <div className="flex flex-wrap items-center gap-1 border-b p-2">
+                  <Button size="sm" variant={editor?.isActive("bold") ? "secondary" : "ghost"} onClick={() => editor?.chain().focus().toggleBold().run()}><Bold className="h-4 w-4" /></Button>
+                  <Button size="sm" variant={editor?.isActive("italic") ? "secondary" : "ghost"} onClick={() => editor?.chain().focus().toggleItalic().run()}><Italic className="h-4 w-4" /></Button>
+                  <div className="mx-1 h-5 w-px bg-border" />
+                  <Button size="sm" variant={editor?.isActive("bulletList") ? "secondary" : "ghost"} onClick={() => editor?.chain().focus().toggleBulletList().run()}><List className="h-4 w-4" /></Button>
+                  <Button size="sm" variant={editor?.isActive("orderedList") ? "secondary" : "ghost"} onClick={() => editor?.chain().focus().toggleOrderedList().run()}><ListOrdered className="h-4 w-4" /></Button>
+                  <div className="mx-1 h-5 w-px bg-border" />
+                  <Button size="sm" variant={editor?.isActive("heading", { level: 1 }) ? "secondary" : "ghost"} onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()}>H1</Button>
+                  <Button size="sm" variant={editor?.isActive("heading", { level: 2 }) ? "secondary" : "ghost"} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}>H2</Button>
+                </div>
+              )}
+              <EditorContent editor={editor} />
+            </>
           ) : (
             <div className="p-8 text-center text-sm text-muted-foreground">
               Aperçu non disponible pour ce type de fichier ({doc.mime_type ?? "inconnu"}).
