@@ -63,15 +63,23 @@ function DocsPage() {
     if (!files || !user) return;
     setUploading(true);
     try {
+      const rates = await fetchLatestRates();
+      const headerText = buildRateHeaderText(rates);
       for (const file of Array.from(files)) {
         const path = `${user.id}/${Date.now()}-${file.name}`;
         const { error: upErr } = await supabase.storage.from("documents").upload(path, file);
         if (upErr) throw upErr;
-        const { error: dbErr } = await supabase.from("documents").insert({
+        const { data: docRow, error: dbErr } = await supabase.from("documents").insert({
           user_id: user.id, name: file.name, storage_path: path,
           mime_type: file.type, size_bytes: file.size, folder_id: folderId,
-        });
+        }).select().single();
         if (dbErr) throw dbErr;
+        // Persist the rate-of-the-day header for AI monthly reports
+        await supabase.from("document_versions").insert({
+          document_id: docRow.id, version_number: 1, storage_path: path,
+          size_bytes: file.size, mime_type: file.type, created_by: user.id,
+          comment: headerText,
+        });
       }
       toast.success("Fichier(s) téléversé(s)");
       load();
