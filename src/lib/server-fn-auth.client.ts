@@ -20,3 +20,5 @@ if (typeof window !== "undefined" && !(window as any).__lovableServerFnFetchPatc
     return originalFetch(input as any, init);
   };
 }
+
+export {};
