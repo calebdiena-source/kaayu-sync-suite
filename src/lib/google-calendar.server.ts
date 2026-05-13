@@ -10,6 +10,7 @@ export const GOOGLE_SCOPES = [
   "profile",
   "https://www.googleapis.com/auth/calendar",
   "https://www.googleapis.com/auth/calendar.events",
+  "https://www.googleapis.com/auth/drive.file",
 ].join(" ");
 
 export function getRedirectUri(origin: string) {
