@@ -118,6 +118,7 @@ function ReportsPage() {
     setStats(h.stats);
     setReport(h.report);
     setActiveId(h.id);
+    navigate({ to: "/app/reports/$id", params: { id: h.id } });
   };
 
   const removeHistory = async (id: string) => {
