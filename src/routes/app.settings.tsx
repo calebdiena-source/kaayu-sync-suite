@@ -25,18 +25,23 @@ function SettingsPage() {
     setLoading(true);
     try {
       setInfo((await status({})) as GoogleStatus);
+    } catch (e) {
+      console.error("getGoogleStatus failed", e);
+      setInfo(null);
     } finally {
       setLoading(false);
     }
   }, [status]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     refresh();
     const params = new URLSearchParams(window.location.search);
     if (params.get("google") === "ok") toast.success("Google Calendar connecté");
     else if (params.get("google") === "err") toast.error(`Échec : ${params.get("msg")}`);
     if (params.has("google")) window.history.replaceState({}, "", "/app/settings");
-  }, [refresh]);
+    // run once on mount; `status` from useServerFn is unstable and would loop
+  }, []);
 
   const connect = async () => {
     try {
