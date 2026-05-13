@@ -18,7 +18,7 @@ const DOCX_MIME =
 
 type SearchParams = { name?: string };
 
-export const Route = createFileRoute("/app/documents/editor/$id")({
+export const Route = createFileRoute("/app/documents_/editor/$id")({
   head: () => ({ meta: [{ title: "Éditeur — Kaayu" }] }),
   validateSearch: (s: Record<string, unknown>): SearchParams => ({
     name: typeof s.name === "string" ? s.name : undefined,
