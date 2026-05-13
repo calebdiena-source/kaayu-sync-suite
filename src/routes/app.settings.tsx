@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { startGoogleConnect, getGoogleStatus, disconnectGoogle } from "@/lib/google.functions";
+import { startGoogleConnect, getGoogleStatus, disconnectGoogle, GOOGLE_REDIRECT_URIS } from "@/lib/google.functions";
 import { Button } from "@/components/ui/button";
 import { CalendarDays, Check, Link2Off } from "lucide-react";
 import { toast } from "sonner";
@@ -33,7 +33,9 @@ function SettingsPage() {
 
   const connect = async () => {
     try {
-      const { url } = await start({});
+      const { url, redirectUri } = await start({});
+      console.info("Google Calendar OAuth redirect_uri:", redirectUri);
+      console.info("Google Calendar OAuth complete URL:", url);
       window.location.href = url;
     } catch (e: any) { toast.error(e?.message ?? "Erreur"); }
   };
@@ -63,6 +65,11 @@ function SettingsPage() {
               Synchronisez automatiquement vos événements Kaayu avec votre Google Calendar (PC & téléphone).
             </p>
             {info?.google_email && <p className="mt-2 text-xs text-muted-foreground">Compte : <span className="font-medium text-foreground">{info.google_email}</span></p>}
+            <div className="mt-4 rounded-md border bg-background p-3 text-xs text-muted-foreground">
+              <p className="font-medium text-foreground">redirect_uri Google OAuth</p>
+              <p className="mt-2 break-all">Preview : {GOOGLE_REDIRECT_URIS.preview}</p>
+              <p className="mt-1 break-all">Production : {GOOGLE_REDIRECT_URIS.production}</p>
+            </div>
             <div className="mt-4 flex gap-2">
               {loading ? <div className="text-sm text-muted-foreground">Chargement…</div> : info ? (
                 <Button variant="outline" onClick={disconnect}><Link2Off className="mr-2 h-4 w-4" />Déconnecter</Button>
