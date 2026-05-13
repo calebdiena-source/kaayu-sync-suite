@@ -70,6 +70,7 @@ export type Database = {
       }
       calendar_events: {
         Row: {
+          color: string | null
           created_at: string
           description: string | null
           end_at: string | null
@@ -83,6 +84,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          color?: string | null
           created_at?: string
           description?: string | null
           end_at?: string | null
@@ -96,6 +98,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          color?: string | null
           created_at?: string
           description?: string | null
           end_at?: string | null
@@ -508,6 +511,9 @@ export type Database = {
           created_at: string
           description: string | null
           due_date: string | null
+          due_time: string | null
+          google_event_id: string | null
+          google_synced_at: string | null
           id: string
           priority: string
           status: string
@@ -520,6 +526,9 @@ export type Database = {
           created_at?: string
           description?: string | null
           due_date?: string | null
+          due_time?: string | null
+          google_event_id?: string | null
+          google_synced_at?: string | null
           id?: string
           priority?: string
           status?: string
@@ -532,6 +541,9 @@ export type Database = {
           created_at?: string
           description?: string | null
           due_date?: string | null
+          due_time?: string | null
+          google_event_id?: string | null
+          google_synced_at?: string | null
           id?: string
           priority?: string
           status?: string
