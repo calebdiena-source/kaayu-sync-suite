@@ -20,12 +20,49 @@ const fileToDataUrl = (file: File) =>
   });
 
 function OcrPage() {
+  const { user } = useAuth();
   const [text, setText] = useState("");
   const [result, setResult] = useState("");
   const [loading, setLoading] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [scanFileName, setScanFileName] = useState<string>("");
+  const [noteId, setNoteId] = useState<string | null>(null);
+  const [savingNote, setSavingNote] = useState(false);
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Auto-save the IA result as a Note (same shape as other notes).
+  useEffect(() => {
+    if (!user || !result.trim()) return;
+    const handle = setTimeout(async () => {
+      setSavingNote(true);
+      const title = (scanFileName || `Transcription IA ${new Date().toLocaleDateString("fr-FR")}`).slice(0, 120);
+      // Store as HTML paragraphs so it renders properly in the notes editor.
+      const html = result
+        .split(/\n+/)
+        .map((p) => `<p>${p.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") || "<br/>"}</p>`)
+        .join("");
+      if (!noteId) {
+        const { data, error } = await supabase
+          .from("notes")
+          .insert({ user_id: user.id, title, content: html })
+          .select("id")
+          .single();
+        if (error) toast.error(error.message);
+        else { setNoteId(data.id); setSavedAt(new Date()); }
+      } else {
+        const { error } = await supabase
+          .from("notes")
+          .update({ title, content: html, updated_at: new Date().toISOString() })
+          .eq("id", noteId);
+        if (error) toast.error(error.message);
+        else setSavedAt(new Date());
+      }
+      setSavingNote(false);
+    }, 1200);
+    return () => clearTimeout(handle);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [result, user?.id]);
 
   const callAi = async (messages: any[]) => {
     const { data, error } = await supabase.functions.invoke("ai-chat", { body: { messages } });
