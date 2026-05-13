@@ -95,7 +95,13 @@ function ReportsPage() {
           .insert({ user_id: user.id, month, stats: data.stats, report: data.report })
           .select("id")
           .single();
-        if (saved?.id) setActiveId(saved.id);
+        if (saved?.id) {
+          setActiveId(saved.id);
+          loadHistory();
+          toast.success("Rapport généré");
+          navigate({ to: "/app/reports/$id", params: { id: saved.id } });
+          return;
+        }
         loadHistory();
       }
       toast.success("Rapport généré et enregistré");
