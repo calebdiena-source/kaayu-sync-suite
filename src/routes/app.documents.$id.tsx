@@ -10,21 +10,45 @@ import { exportTextToPDF } from "@/lib/exports";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import mammoth from "mammoth/mammoth.browser";
 import { Document, Packer, Paragraph, HeadingLevel, TextRun } from "docx";
-import { buildRateHeaderHtml, buildRateHeaderText, fetchLatestRates, replaceRateHeaderHtml } from "@/lib/rate-header";
+import {
+  buildRateHeaderHtml,
+  buildRateHeaderText,
+  fetchLatestRates,
+  replaceRateHeaderHtml,
+} from "@/lib/rate-header";
 
 export const Route = createFileRoute("/app/documents/$id")({
   head: () => ({ meta: [{ title: "Document — Kaayu" }] }),
   component: DocumentPage,
 });
 
-type Doc = { id: string; name: string; storage_path: string; mime_type: string | null; user_id: string; size_bytes: number | null; created_at: string };
-type Version = { id: string; version_number: number; storage_path: string; created_at: string; comment: string | null; size_bytes: number | null };
+type Doc = {
+  id: string;
+  name: string;
+  storage_path: string;
+  mime_type: string | null;
+  user_id: string;
+  size_bytes: number | null;
+  created_at: string;
+};
+type Version = {
+  id: string;
+  version_number: number;
+  storage_path: string;
+  created_at: string;
+  comment: string | null;
+  size_bytes: number | null;
+};
 
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 const TEXTUAL = ["text/html", "text/plain", "text/markdown"];
 
-function isDocx(d: Doc) { return d.mime_type === DOCX_MIME || /\.docx$/i.test(d.name); }
-function isTextualDoc(d: Doc) { return TEXTUAL.includes(d.mime_type ?? "") || /\.(html|txt|md)$/i.test(d.name); }
+function isDocx(d: Doc) {
+  return d.mime_type === DOCX_MIME || /\.docx$/i.test(d.name);
+}
+function isTextualDoc(d: Doc) {
+  return TEXTUAL.includes(d.mime_type ?? "") || /\.(html|txt|md)$/i.test(d.name);
+}
 
 function htmlToText(html: string): string {
   const el = document.createElement("div");
@@ -36,7 +60,10 @@ async function htmlToDocxBlob(title: string, html: string): Promise<Blob> {
   const container = document.createElement("div");
   container.innerHTML = html;
   const paragraphs: Paragraph[] = [
-    new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: title, bold: true })] }),
+    new Paragraph({
+      heading: HeadingLevel.HEADING_1,
+      children: [new TextRun({ text: title, bold: true })],
+    }),
   ];
   const walk = (node: Node) => {
     if (node.nodeType === Node.TEXT_NODE) {
@@ -47,16 +74,52 @@ async function htmlToDocxBlob(title: string, html: string): Promise<Blob> {
     if (!(node instanceof HTMLElement)) return;
     const tag = node.tagName.toLowerCase();
     const text = node.textContent ?? "";
-    if (!text.trim() && tag !== "br") { node.childNodes.forEach(walk); return; }
+    if (!text.trim() && tag !== "br") {
+      node.childNodes.forEach(walk);
+      return;
+    }
     switch (tag) {
-      case "h1": paragraphs.push(new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text, bold: true })] })); break;
-      case "h2": paragraphs.push(new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text, bold: true })] })); break;
-      case "h3": paragraphs.push(new Paragraph({ heading: HeadingLevel.HEADING_3, children: [new TextRun({ text, bold: true })] })); break;
-      case "li": paragraphs.push(new Paragraph({ text, bullet: { level: 0 } })); break;
-      case "ul": case "ol": node.childNodes.forEach(walk); break;
-      case "p": case "div": case "blockquote": paragraphs.push(new Paragraph({ children: [new TextRun(text)] })); break;
-      case "br": paragraphs.push(new Paragraph({ children: [] })); break;
-      default: node.childNodes.forEach(walk);
+      case "h1":
+        paragraphs.push(
+          new Paragraph({
+            heading: HeadingLevel.HEADING_1,
+            children: [new TextRun({ text, bold: true })],
+          }),
+        );
+        break;
+      case "h2":
+        paragraphs.push(
+          new Paragraph({
+            heading: HeadingLevel.HEADING_2,
+            children: [new TextRun({ text, bold: true })],
+          }),
+        );
+        break;
+      case "h3":
+        paragraphs.push(
+          new Paragraph({
+            heading: HeadingLevel.HEADING_3,
+            children: [new TextRun({ text, bold: true })],
+          }),
+        );
+        break;
+      case "li":
+        paragraphs.push(new Paragraph({ text, bullet: { level: 0 } }));
+        break;
+      case "ul":
+      case "ol":
+        node.childNodes.forEach(walk);
+        break;
+      case "p":
+      case "div":
+      case "blockquote":
+        paragraphs.push(new Paragraph({ children: [new TextRun(text)] }));
+        break;
+      case "br":
+        paragraphs.push(new Paragraph({ children: [] }));
+        break;
+      default:
+        node.childNodes.forEach(walk);
     }
   };
   container.childNodes.forEach(walk);
@@ -80,15 +143,27 @@ function DocumentPage() {
   const editable = !!doc && (isTextualDoc(doc) || isDocx(doc));
 
   const loadVersions = useCallback(async () => {
-    const { data } = await supabase.from("document_versions").select("*").eq("document_id", id).order("version_number", { ascending: false });
+    const { data } = await supabase
+      .from("document_versions")
+      .select("*")
+      .eq("document_id", id)
+      .order("version_number", { ascending: false });
     setVersions(data ?? []);
   }, [id]);
 
   useEffect(() => {
     if (!user) return;
     (async () => {
-      const { data: d, error } = await supabase.from("documents").select("*").eq("id", id).maybeSingle();
-      if (error || !d) { toast.error("Document introuvable"); navigate({ to: "/app/documents" }); return; }
+      const { data: d, error } = await supabase
+        .from("documents")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();
+      if (error || !d) {
+        toast.error("Document introuvable");
+        navigate({ to: "/app/documents" });
+        return;
+      }
       setDoc(d);
       setCanEdit(d.user_id === user.id);
       const { data: blob } = await supabase.storage.from("documents").download(d.storage_path);
@@ -105,7 +180,9 @@ function DocumentPage() {
           const text = await blob.text();
           // Ensure rate header is present at the very top for textual docs
           const hasHeader = /data-rate-header="1"/.test(text);
-          setHtml(hasHeader ? text : (buildRateHeaderHtml(await fetchLatestRates()) + (text || "<p></p>")));
+          setHtml(
+            hasHeader ? text : buildRateHeaderHtml(await fetchLatestRates()) + (text || "<p></p>"),
+          );
         }
       }
       setLoaded(true);
@@ -120,12 +197,19 @@ function DocumentPage() {
       const nextVersion = (versions[0]?.version_number ?? 0) + 1;
       const ext = isDocx(doc) ? "docx" : (doc.name.match(/\.([^.]+)$/)?.[1] ?? "html");
       const versionPath = `${user.id}/versions/${doc.id}-v${nextVersion}-${Date.now()}.${ext}`;
-      const { data: currentBlob } = await supabase.storage.from("documents").download(doc.storage_path);
+      const { data: currentBlob } = await supabase.storage
+        .from("documents")
+        .download(doc.storage_path);
       if (currentBlob) {
         await supabase.storage.from("documents").upload(versionPath, currentBlob);
         await supabase.from("document_versions").insert({
-          document_id: doc.id, version_number: nextVersion, storage_path: versionPath,
-          size_bytes: currentBlob.size, mime_type: doc.mime_type, created_by: user.id, comment: "Avant modification",
+          document_id: doc.id,
+          version_number: nextVersion,
+          storage_path: versionPath,
+          size_bytes: currentBlob.size,
+          mime_type: doc.mime_type,
+          created_by: user.id,
+          comment: "Avant modification",
         });
       }
       // Refresh rate-of-the-day header at the very top before persisting
@@ -134,7 +218,8 @@ function DocumentPage() {
       const headerText = buildRateHeaderText(rates, now);
       const htmlWithHeader = replaceRateHeaderHtml(html, rates, now);
       setHtml(htmlWithHeader);
-      let blob: Blob; let mime: string;
+      let blob: Blob;
+      let mime: string;
       if (isDocx(doc)) {
         blob = await htmlToDocxBlob(doc.name.replace(/\.docx$/i, ""), htmlWithHeader);
         mime = DOCX_MIME;
@@ -142,18 +227,31 @@ function DocumentPage() {
         blob = new Blob([htmlWithHeader], { type: "text/html" });
         mime = "text/html";
       }
-      const { error: upErr } = await supabase.storage.from("documents").upload(doc.storage_path, blob, { upsert: true, contentType: mime });
+      const { error: upErr } = await supabase.storage
+        .from("documents")
+        .upload(doc.storage_path, blob, { upsert: true, contentType: mime });
       if (upErr) throw upErr;
-      await supabase.from("documents").update({ size_bytes: blob.size, mime_type: mime }).eq("id", doc.id);
+      await supabase
+        .from("documents")
+        .update({ size_bytes: blob.size, mime_type: mime })
+        .eq("id", doc.id);
       // Stamp the new live version with its rate header so monthly reports can compare
       await supabase.from("document_versions").insert({
-        document_id: doc.id, version_number: nextVersion + 1, storage_path: doc.storage_path,
-        size_bytes: blob.size, mime_type: mime, created_by: user.id, comment: headerText,
+        document_id: doc.id,
+        version_number: nextVersion + 1,
+        storage_path: doc.storage_path,
+        size_bytes: blob.size,
+        mime_type: mime,
+        created_by: user.id,
+        comment: headerText,
       });
       toast.success("Document enregistré");
       loadVersions();
-    } catch (e: any) { toast.error(e.message); }
-    finally { setSaving(false); }
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const downloadDocx = async () => {
@@ -162,12 +260,16 @@ function DocumentPage() {
     const blob = await htmlToDocxBlob(baseName, html);
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `${baseName}.docx`; a.click();
+    a.href = url;
+    a.download = `${baseName}.docx`;
+    a.click();
     URL.revokeObjectURL(url);
   };
 
   const downloadVersion = async (v: Version) => {
-    const { data, error } = await supabase.storage.from("documents").createSignedUrl(v.storage_path, 60);
+    const { data, error } = await supabase.storage
+      .from("documents")
+      .createSignedUrl(v.storage_path, 60);
     if (error) return toast.error(error.message);
     window.open(data.signedUrl, "_blank");
   };
@@ -193,50 +295,96 @@ function DocumentPage() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <Button variant="ghost" size="sm" asChild><Link to="/app/documents"><ArrowLeft className="mr-1 h-4 w-4" />Retour</Link></Button>
+        <Button variant="ghost" size="sm" asChild>
+          <Link to="/app/documents">
+            <ArrowLeft className="mr-1 h-4 w-4" />
+            Retour
+          </Link>
+        </Button>
         <div className="flex items-center gap-2">
           <FileText className="h-5 w-5 text-primary" />
           <h2 className="text-lg font-semibold">{doc.name}</h2>
         </div>
         <div className="ml-auto flex flex-wrap gap-2">
           {editable && canEdit && (
-            <Button onClick={save} disabled={saving} size="sm"><Save className="mr-1 h-4 w-4" />{saving ? "…" : "Enregistrer"}</Button>
+            <Button onClick={save} disabled={saving} size="sm">
+              <Save className="mr-1 h-4 w-4" />
+              {saving ? "…" : "Enregistrer"}
+            </Button>
           )}
           {editable && (
             <>
-              <Button variant="outline" size="sm" onClick={downloadDocx}><Download className="mr-1 h-4 w-4" />DOCX</Button>
-              <Button variant="outline" size="sm" onClick={() => exportTextToPDF(`${doc.name.replace(/\.[^.]+$/, "")}.pdf`, doc.name, htmlToText(html))}>
-                <Download className="mr-1 h-4 w-4" />PDF
+              <Button variant="outline" size="sm" onClick={downloadDocx}>
+                <Download className="mr-1 h-4 w-4" />
+                DOCX
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  exportTextToPDF(
+                    `${doc.name.replace(/\.[^.]+$/, "")}.pdf`,
+                    doc.name,
+                    htmlToText(html),
+                  )
+                }
+              >
+                <Download className="mr-1 h-4 w-4" />
+                PDF
               </Button>
             </>
           )}
           {canEdit && (
-            <Button variant="outline" size="sm" onClick={() => setShareOpen(true)}><Share2 className="mr-1 h-4 w-4" />Partager</Button>
+            <Button variant="outline" size="sm" onClick={() => setShareOpen(true)}>
+              <Share2 className="mr-1 h-4 w-4" />
+              Partager
+            </Button>
           )}
         </div>
       </div>
 
       <div className="flex gap-1 border-b">
-        <button onClick={() => setTab("edit")} className={`px-4 py-2 text-sm ${tab === "edit" ? "border-b-2 border-primary font-medium" : "text-muted-foreground"}`}>
+        <button
+          onClick={() => setTab("edit")}
+          className={`px-4 py-2 text-sm ${tab === "edit" ? "border-b-2 border-primary font-medium" : "text-muted-foreground"}`}
+        >
           {editable ? "Édition" : "Aperçu"}
         </button>
-        <button onClick={() => setTab("versions")} className={`px-4 py-2 text-sm ${tab === "versions" ? "border-b-2 border-primary font-medium" : "text-muted-foreground"}`}>
-          <History className="mr-1 inline h-4 w-4" />Versions ({versions.length})
+        <button
+          onClick={() => setTab("versions")}
+          className={`px-4 py-2 text-sm ${tab === "versions" ? "border-b-2 border-primary font-medium" : "text-muted-foreground"}`}
+        >
+          <History className="mr-1 inline h-4 w-4" />
+          Versions ({versions.length})
         </button>
       </div>
 
       {tab === "edit" && (
         <div className="overflow-hidden rounded-xl border bg-card">
           {editable ? (
-            <RichTextEditor value={html} onChange={setHtml} editable={canEdit} placeholder="Commencez à écrire votre document…" />
+            <RichTextEditor
+              value={html}
+              onChange={setHtml}
+              editable={canEdit}
+              placeholder="Commencez à écrire votre document…"
+            />
           ) : (
             <div className="p-8 text-center text-sm text-muted-foreground">
               Aperçu non disponible pour ce type de fichier ({doc.mime_type ?? "inconnu"}).
               <div className="mt-3">
-                <Button variant="outline" size="sm" onClick={async () => {
-                  const { data } = await supabase.storage.from("documents").createSignedUrl(doc.storage_path, 60);
-                  if (data) window.open(data.signedUrl, "_blank");
-                }}><Download className="mr-1 h-4 w-4" />Télécharger</Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={async () => {
+                    const { data } = await supabase.storage
+                      .from("documents")
+                      .createSignedUrl(doc.storage_path, 60);
+                    if (data) window.open(data.signedUrl, "_blank");
+                  }}
+                >
+                  <Download className="mr-1 h-4 w-4" />
+                  Télécharger
+                </Button>
               </div>
             </div>
           )}
@@ -246,22 +394,35 @@ function DocumentPage() {
       {tab === "versions" && (
         <div className="rounded-xl border bg-card">
           {versions.length === 0 ? (
-            <div className="p-8 text-center text-sm text-muted-foreground">Aucune version antérieure.</div>
+            <div className="p-8 text-center text-sm text-muted-foreground">
+              Aucune version antérieure.
+            </div>
           ) : (
             <table className="w-full text-sm">
               <thead className="bg-muted/50 text-xs uppercase tracking-wider text-muted-foreground">
-                <tr><th className="px-3 py-2 text-left">Version</th><th className="px-3 py-2 text-left">Date</th><th className="px-3 py-2 text-left">Commentaire</th><th className="px-3 py-2"></th></tr>
+                <tr>
+                  <th className="px-3 py-2 text-left">Version</th>
+                  <th className="px-3 py-2 text-left">Date</th>
+                  <th className="px-3 py-2 text-left">Commentaire</th>
+                  <th className="px-3 py-2"></th>
+                </tr>
               </thead>
               <tbody>
                 {versions.map((v) => (
                   <tr key={v.id} className="border-t">
                     <td className="px-3 py-2 font-mono">v{v.version_number}</td>
-                    <td className="px-3 py-2 text-muted-foreground">{new Date(v.created_at).toLocaleString("fr-FR")}</td>
+                    <td className="px-3 py-2 text-muted-foreground">
+                      {new Date(v.created_at).toLocaleString("fr-FR")}
+                    </td>
                     <td className="px-3 py-2 text-muted-foreground">{v.comment ?? "—"}</td>
                     <td className="px-3 py-2 text-right">
-                      <Button size="sm" variant="ghost" onClick={() => downloadVersion(v)}><Download className="h-4 w-4" /></Button>
+                      <Button size="sm" variant="ghost" onClick={() => downloadVersion(v)}>
+                        <Download className="h-4 w-4" />
+                      </Button>
                       {canEdit && editable && (
-                        <Button size="sm" variant="ghost" onClick={() => restoreVersion(v)}><RotateCcw className="h-4 w-4" /></Button>
+                        <Button size="sm" variant="ghost" onClick={() => restoreVersion(v)}>
+                          <RotateCcw className="h-4 w-4" />
+                        </Button>
                       )}
                     </td>
                   </tr>

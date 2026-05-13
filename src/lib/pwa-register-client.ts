@@ -13,7 +13,7 @@ if (typeof window !== "undefined" && "serviceWorker" in navigator) {
     host.includes("id-preview--") ||
     host.includes("lovableproject.com") ||
     host.includes("lovableproject-dev.com") ||
-    host.endsWith("lovable.app") && host.includes("preview");
+    (host.endsWith("lovable.app") && host.includes("preview"));
 
   if (isInIframe || isPreviewHost) {
     // Make sure no SW is active in preview/iframe contexts.

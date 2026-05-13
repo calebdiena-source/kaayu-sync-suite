@@ -66,7 +66,10 @@ export async function uploadToDrive(
   return { id: j.id as string, size: Number(j.size ?? bytes.length) };
 }
 
-export async function downloadFromDrive(userId: string, fileId: string): Promise<{ bytes: Uint8Array; mimeType: string } | null> {
+export async function downloadFromDrive(
+  userId: string,
+  fileId: string,
+): Promise<{ bytes: Uint8Array; mimeType: string } | null> {
   const token = await getAccessToken(userId);
   if (!token) return null;
   const meta = await fetch(`${DRIVE_API}/files/${fileId}?fields=mimeType`, {

@@ -73,21 +73,31 @@ export function decodeIdEmail(id_token?: string): string | null {
   try {
     const payload = JSON.parse(Buffer.from(id_token.split(".")[1], "base64").toString());
     return payload.email ?? null;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
-export async function getValidAccessToken(userId: string): Promise<{ token: string; calendarId: string } | null> {
+export async function getValidAccessToken(
+  userId: string,
+): Promise<{ token: string; calendarId: string } | null> {
   const { data } = await supabaseAdmin
-    .from("google_integrations").select("*").eq("user_id", userId).maybeSingle();
+    .from("google_integrations")
+    .select("*")
+    .eq("user_id", userId)
+    .maybeSingle();
   if (!data) return null;
   let token = data.access_token;
   if (new Date(data.token_expires_at).getTime() - 60000 < Date.now()) {
     const r = await refreshToken(data.refresh_token);
     token = r.access_token;
-    await supabaseAdmin.from("google_integrations").update({
-      access_token: token,
-      token_expires_at: new Date(Date.now() + r.expires_in * 1000).toISOString(),
-    }).eq("user_id", userId);
+    await supabaseAdmin
+      .from("google_integrations")
+      .update({
+        access_token: token,
+        token_expires_at: new Date(Date.now() + r.expires_in * 1000).toISOString(),
+      })
+      .eq("user_id", userId);
   }
   return { token, calendarId: data.calendar_id ?? "primary" };
 }
@@ -104,25 +114,40 @@ type EventInput = {
 
 // Map hex/name colors to Google Calendar colorId (1-11). Best-effort.
 const COLOR_TO_ID: Record<string, string> = {
-  "#7986CB": "1", "#33B679": "2", "#8E24AA": "3", "#E67C73": "4",
-  "#F6BF26": "5", "#F4511E": "6", "#039BE5": "7", "#616161": "8",
-  "#3F51B5": "9", "#0B8043": "10", "#D50000": "11",
+  "#7986CB": "1",
+  "#33B679": "2",
+  "#8E24AA": "3",
+  "#E67C73": "4",
+  "#F6BF26": "5",
+  "#F4511E": "6",
+  "#039BE5": "7",
+  "#616161": "8",
+  "#3F51B5": "9",
+  "#0B8043": "10",
+  "#D50000": "11",
 };
 
-export async function pushEvent(userId: string, ev: EventInput, googleEventId?: string | null): Promise<string | null> {
+export async function pushEvent(
+  userId: string,
+  ev: EventInput,
+  googleEventId?: string | null,
+): Promise<string | null> {
   const auth = await getValidAccessToken(userId);
   if (!auth) return null;
   const startIso = new Date(ev.start_at).toISOString();
-  const endIso = new Date(ev.end_at ?? new Date(new Date(ev.start_at).getTime() + 3600000).toISOString()).toISOString();
-  const reminders = ev.reminder_minutes && ev.reminder_minutes > 0
-    ? {
-        useDefault: false,
-        overrides: [
-          { method: "popup", minutes: ev.reminder_minutes },
-          { method: "email", minutes: ev.reminder_minutes },
-        ],
-      }
-    : { useDefault: true };
+  const endIso = new Date(
+    ev.end_at ?? new Date(new Date(ev.start_at).getTime() + 3600000).toISOString(),
+  ).toISOString();
+  const reminders =
+    ev.reminder_minutes && ev.reminder_minutes > 0
+      ? {
+          useDefault: false,
+          overrides: [
+            { method: "popup", minutes: ev.reminder_minutes },
+            { method: "email", minutes: ev.reminder_minutes },
+          ],
+        }
+      : { useDefault: true };
   const body: Record<string, unknown> = {
     summary: ev.title,
     description: ev.description ?? undefined,
@@ -167,7 +192,11 @@ export type GoogleEvent = {
   colorId?: string;
 };
 
-export async function listEvents(userId: string, timeMinIso: string, timeMaxIso: string): Promise<GoogleEvent[]> {
+export async function listEvents(
+  userId: string,
+  timeMinIso: string,
+  timeMaxIso: string,
+): Promise<GoogleEvent[]> {
   const auth = await getValidAccessToken(userId);
   if (!auth) return [];
   const params = new URLSearchParams({
@@ -177,9 +206,12 @@ export async function listEvents(userId: string, timeMinIso: string, timeMaxIso:
     orderBy: "startTime",
     maxResults: "250",
   });
-  const res = await fetch(`${API}/calendars/${encodeURIComponent(auth.calendarId)}/events?${params}`, {
-    headers: { Authorization: `Bearer ${auth.token}` },
-  });
+  const res = await fetch(
+    `${API}/calendars/${encodeURIComponent(auth.calendarId)}/events?${params}`,
+    {
+      headers: { Authorization: `Bearer ${auth.token}` },
+    },
+  );
   if (!res.ok) throw new Error(`Google list failed: ${await res.text()}`);
   const j = await res.json();
   return (j.items ?? []) as GoogleEvent[];

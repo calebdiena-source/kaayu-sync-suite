@@ -118,7 +118,11 @@ export const syncTaskToGoogle = createServerFn({ method: "POST" })
     const time = (t.due_time as string | null) || "09:00";
     const startIso = new Date(`${t.due_date}T${time}:00`).toISOString();
     const endIso = new Date(new Date(startIso).getTime() + 30 * 60 * 1000).toISOString();
-    const colorByPriority: Record<string, string> = { high: "#D50000", medium: "#F6BF26", low: "#33B679" };
+    const colorByPriority: Record<string, string> = {
+      high: "#D50000",
+      medium: "#F6BF26",
+      low: "#33B679",
+    };
     const status = (t.status as string) === "done" ? " ✓" : "";
     const googleId = await pushEvent(
       context.userId,

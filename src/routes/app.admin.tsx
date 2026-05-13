@@ -22,17 +22,23 @@ function AdminPage() {
         supabase.from("meetings").select("*", { count: "exact", head: true }),
         supabase.from("exchange_rates").select("*", { count: "exact", head: true }),
       ]);
-      setCounts({ users: u.count ?? 0, docs: d.count ?? 0, meetings: m.count ?? 0, rates: r.count ?? 0 });
+      setCounts({
+        users: u.count ?? 0,
+        docs: d.count ?? 0,
+        meetings: m.count ?? 0,
+        rates: r.count ?? 0,
+      });
     })();
   }, [isAdmin]);
 
   if (loading) return <div className="text-muted-foreground">Chargement…</div>;
-  if (!isAdmin) return (
-    <div className="rounded-xl border bg-card p-12 text-center">
-      <Shield className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
-      <div className="text-sm text-muted-foreground">Accès réservé aux administrateurs.</div>
-    </div>
-  );
+  if (!isAdmin)
+    return (
+      <div className="rounded-xl border bg-card p-12 text-center">
+        <Shield className="mx-auto mb-3 h-10 w-10 text-muted-foreground" />
+        <div className="text-sm text-muted-foreground">Accès réservé aux administrateurs.</div>
+      </div>
+    );
 
   const cards = [
     { label: "Utilisateurs", value: counts.users },
@@ -43,11 +49,16 @@ function AdminPage() {
 
   return (
     <div className="space-y-6">
-      <div><h2 className="text-xl font-semibold tracking-tight">Administration</h2><p className="text-sm text-muted-foreground">Statistiques globales</p></div>
+      <div>
+        <h2 className="text-xl font-semibold tracking-tight">Administration</h2>
+        <p className="text-sm text-muted-foreground">Statistiques globales</p>
+      </div>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map((c) => (
           <div key={c.label} className="rounded-xl border bg-card p-5">
-            <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{c.label}</div>
+            <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+              {c.label}
+            </div>
             <div className="mt-2 text-2xl font-semibold">{c.value}</div>
           </div>
         ))}

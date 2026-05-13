@@ -13,10 +13,29 @@ import TaskItem from "@tiptap/extension-task-item";
 import { Table, TableRow, TableHeader, TableCell } from "@tiptap/extension-table";
 import { useEffect } from "react";
 import {
-  Bold, Italic, Underline as UnderlineIcon, Strikethrough, Code, Highlighter,
-  List, ListOrdered, ListChecks, Quote, Minus, Link as LinkIcon, Image as ImageIcon,
-  AlignLeft, AlignCenter, AlignRight, AlignJustify, Table as TableIcon,
-  Undo, Redo, Eraser, Palette, Type,
+  Bold,
+  Italic,
+  Underline as UnderlineIcon,
+  Strikethrough,
+  Code,
+  Highlighter,
+  List,
+  ListOrdered,
+  ListChecks,
+  Quote,
+  Minus,
+  Link as LinkIcon,
+  Image as ImageIcon,
+  AlignLeft,
+  AlignCenter,
+  AlignRight,
+  AlignJustify,
+  Table as TableIcon,
+  Undo,
+  Redo,
+  Eraser,
+  Palette,
+  Type,
 } from "lucide-react";
 
 type Props = {
@@ -28,7 +47,19 @@ type Props = {
   minHeight?: string;
 };
 
-function ToolbarBtn({ onClick, active, disabled, title, children }: { onClick: () => void; active?: boolean; disabled?: boolean; title?: string; children: React.ReactNode }) {
+function ToolbarBtn({
+  onClick,
+  active,
+  disabled,
+  title,
+  children,
+}: {
+  onClick: () => void;
+  active?: boolean;
+  disabled?: boolean;
+  title?: string;
+  children: React.ReactNode;
+}) {
   return (
     <button
       type="button"
@@ -42,7 +73,9 @@ function ToolbarBtn({ onClick, active, disabled, title, children }: { onClick: (
   );
 }
 
-function Sep() { return <span className="mx-1 h-5 w-px bg-border" />; }
+function Sep() {
+  return <span className="mx-1 h-5 w-px bg-border" />;
+}
 
 function Toolbar({ editor }: { editor: Editor }) {
   const setLink = () => {
@@ -56,18 +89,35 @@ function Toolbar({ editor }: { editor: Editor }) {
     const url = window.prompt("URL de l'image");
     if (url) editor.chain().focus().setImage({ src: url }).run();
   };
-  const insertTable = () => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+  const insertTable = () =>
+    editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
 
-  const blockValue =
-    editor.isActive("heading", { level: 1 }) ? "h1" :
-    editor.isActive("heading", { level: 2 }) ? "h2" :
-    editor.isActive("heading", { level: 3 }) ? "h3" :
-    editor.isActive("blockquote") ? "quote" : "p";
+  const blockValue = editor.isActive("heading", { level: 1 })
+    ? "h1"
+    : editor.isActive("heading", { level: 2 })
+      ? "h2"
+      : editor.isActive("heading", { level: 3 })
+        ? "h3"
+        : editor.isActive("blockquote")
+          ? "quote"
+          : "p";
 
   return (
     <div className="sticky top-0 z-10 flex flex-wrap items-center gap-0.5 border-b bg-card/95 px-2 py-1.5 backdrop-blur">
-      <ToolbarBtn title="Annuler" onClick={() => editor.chain().focus().undo().run()} disabled={!editor.can().undo()}><Undo className="h-4 w-4" /></ToolbarBtn>
-      <ToolbarBtn title="Rétablir" onClick={() => editor.chain().focus().redo().run()} disabled={!editor.can().redo()}><Redo className="h-4 w-4" /></ToolbarBtn>
+      <ToolbarBtn
+        title="Annuler"
+        onClick={() => editor.chain().focus().undo().run()}
+        disabled={!editor.can().undo()}
+      >
+        <Undo className="h-4 w-4" />
+      </ToolbarBtn>
+      <ToolbarBtn
+        title="Rétablir"
+        onClick={() => editor.chain().focus().redo().run()}
+        disabled={!editor.can().redo()}
+      >
+        <Redo className="h-4 w-4" />
+      </ToolbarBtn>
       <Sep />
       <select
         className="h-8 rounded-md border bg-background px-1.5 text-xs"
@@ -114,19 +164,73 @@ function Toolbar({ editor }: { editor: Editor }) {
           }}
         >
           <option value="">Taille</option>
-          {["10px","12px","14px","16px","18px","20px","24px","30px","36px","48px","60px","72px"].map((s) => (
-            <option key={s} value={s}>{s.replace("px","")}</option>
+          {[
+            "10px",
+            "12px",
+            "14px",
+            "16px",
+            "18px",
+            "20px",
+            "24px",
+            "30px",
+            "36px",
+            "48px",
+            "60px",
+            "72px",
+          ].map((s) => (
+            <option key={s} value={s}>
+              {s.replace("px", "")}
+            </option>
           ))}
         </select>
       </div>
       <Sep />
-      <ToolbarBtn title="Gras" onClick={() => editor.chain().focus().toggleBold().run()} active={editor.isActive("bold")}><Bold className="h-4 w-4" /></ToolbarBtn>
-      <ToolbarBtn title="Italique" onClick={() => editor.chain().focus().toggleItalic().run()} active={editor.isActive("italic")}><Italic className="h-4 w-4" /></ToolbarBtn>
-      <ToolbarBtn title="Souligné" onClick={() => editor.chain().focus().toggleUnderline().run()} active={editor.isActive("underline")}><UnderlineIcon className="h-4 w-4" /></ToolbarBtn>
-      <ToolbarBtn title="Barré" onClick={() => editor.chain().focus().toggleStrike().run()} active={editor.isActive("strike")}><Strikethrough className="h-4 w-4" /></ToolbarBtn>
-      <ToolbarBtn title="Code" onClick={() => editor.chain().focus().toggleCode().run()} active={editor.isActive("code")}><Code className="h-4 w-4" /></ToolbarBtn>
-      <ToolbarBtn title="Surligner" onClick={() => editor.chain().focus().toggleHighlight().run()} active={editor.isActive("highlight")}><Highlighter className="h-4 w-4" /></ToolbarBtn>
-      <label className="inline-flex h-8 cursor-pointer items-center gap-1 rounded-md px-1.5 hover:bg-accent" title="Couleur du texte">
+      <ToolbarBtn
+        title="Gras"
+        onClick={() => editor.chain().focus().toggleBold().run()}
+        active={editor.isActive("bold")}
+      >
+        <Bold className="h-4 w-4" />
+      </ToolbarBtn>
+      <ToolbarBtn
+        title="Italique"
+        onClick={() => editor.chain().focus().toggleItalic().run()}
+        active={editor.isActive("italic")}
+      >
+        <Italic className="h-4 w-4" />
+      </ToolbarBtn>
+      <ToolbarBtn
+        title="Souligné"
+        onClick={() => editor.chain().focus().toggleUnderline().run()}
+        active={editor.isActive("underline")}
+      >
+        <UnderlineIcon className="h-4 w-4" />
+      </ToolbarBtn>
+      <ToolbarBtn
+        title="Barré"
+        onClick={() => editor.chain().focus().toggleStrike().run()}
+        active={editor.isActive("strike")}
+      >
+        <Strikethrough className="h-4 w-4" />
+      </ToolbarBtn>
+      <ToolbarBtn
+        title="Code"
+        onClick={() => editor.chain().focus().toggleCode().run()}
+        active={editor.isActive("code")}
+      >
+        <Code className="h-4 w-4" />
+      </ToolbarBtn>
+      <ToolbarBtn
+        title="Surligner"
+        onClick={() => editor.chain().focus().toggleHighlight().run()}
+        active={editor.isActive("highlight")}
+      >
+        <Highlighter className="h-4 w-4" />
+      </ToolbarBtn>
+      <label
+        className="inline-flex h-8 cursor-pointer items-center gap-1 rounded-md px-1.5 hover:bg-accent"
+        title="Couleur du texte"
+      >
         <Palette className="h-4 w-4" />
         <input
           type="color"
@@ -136,22 +240,86 @@ function Toolbar({ editor }: { editor: Editor }) {
         />
       </label>
       <Sep />
-      <ToolbarBtn title="Aligner à gauche" onClick={() => editor.chain().focus().setTextAlign("left").run()} active={editor.isActive({ textAlign: "left" })}><AlignLeft className="h-4 w-4" /></ToolbarBtn>
-      <ToolbarBtn title="Centrer" onClick={() => editor.chain().focus().setTextAlign("center").run()} active={editor.isActive({ textAlign: "center" })}><AlignCenter className="h-4 w-4" /></ToolbarBtn>
-      <ToolbarBtn title="Aligner à droite" onClick={() => editor.chain().focus().setTextAlign("right").run()} active={editor.isActive({ textAlign: "right" })}><AlignRight className="h-4 w-4" /></ToolbarBtn>
-      <ToolbarBtn title="Justifier" onClick={() => editor.chain().focus().setTextAlign("justify").run()} active={editor.isActive({ textAlign: "justify" })}><AlignJustify className="h-4 w-4" /></ToolbarBtn>
+      <ToolbarBtn
+        title="Aligner à gauche"
+        onClick={() => editor.chain().focus().setTextAlign("left").run()}
+        active={editor.isActive({ textAlign: "left" })}
+      >
+        <AlignLeft className="h-4 w-4" />
+      </ToolbarBtn>
+      <ToolbarBtn
+        title="Centrer"
+        onClick={() => editor.chain().focus().setTextAlign("center").run()}
+        active={editor.isActive({ textAlign: "center" })}
+      >
+        <AlignCenter className="h-4 w-4" />
+      </ToolbarBtn>
+      <ToolbarBtn
+        title="Aligner à droite"
+        onClick={() => editor.chain().focus().setTextAlign("right").run()}
+        active={editor.isActive({ textAlign: "right" })}
+      >
+        <AlignRight className="h-4 w-4" />
+      </ToolbarBtn>
+      <ToolbarBtn
+        title="Justifier"
+        onClick={() => editor.chain().focus().setTextAlign("justify").run()}
+        active={editor.isActive({ textAlign: "justify" })}
+      >
+        <AlignJustify className="h-4 w-4" />
+      </ToolbarBtn>
       <Sep />
-      <ToolbarBtn title="Liste à puces" onClick={() => editor.chain().focus().toggleBulletList().run()} active={editor.isActive("bulletList")}><List className="h-4 w-4" /></ToolbarBtn>
-      <ToolbarBtn title="Liste numérotée" onClick={() => editor.chain().focus().toggleOrderedList().run()} active={editor.isActive("orderedList")}><ListOrdered className="h-4 w-4" /></ToolbarBtn>
-      <ToolbarBtn title="Liste de tâches" onClick={() => editor.chain().focus().toggleTaskList().run()} active={editor.isActive("taskList")}><ListChecks className="h-4 w-4" /></ToolbarBtn>
-      <ToolbarBtn title="Citation" onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive("blockquote")}><Quote className="h-4 w-4" /></ToolbarBtn>
-      <ToolbarBtn title="Séparateur" onClick={() => editor.chain().focus().setHorizontalRule().run()}><Minus className="h-4 w-4" /></ToolbarBtn>
+      <ToolbarBtn
+        title="Liste à puces"
+        onClick={() => editor.chain().focus().toggleBulletList().run()}
+        active={editor.isActive("bulletList")}
+      >
+        <List className="h-4 w-4" />
+      </ToolbarBtn>
+      <ToolbarBtn
+        title="Liste numérotée"
+        onClick={() => editor.chain().focus().toggleOrderedList().run()}
+        active={editor.isActive("orderedList")}
+      >
+        <ListOrdered className="h-4 w-4" />
+      </ToolbarBtn>
+      <ToolbarBtn
+        title="Liste de tâches"
+        onClick={() => editor.chain().focus().toggleTaskList().run()}
+        active={editor.isActive("taskList")}
+      >
+        <ListChecks className="h-4 w-4" />
+      </ToolbarBtn>
+      <ToolbarBtn
+        title="Citation"
+        onClick={() => editor.chain().focus().toggleBlockquote().run()}
+        active={editor.isActive("blockquote")}
+      >
+        <Quote className="h-4 w-4" />
+      </ToolbarBtn>
+      <ToolbarBtn
+        title="Séparateur"
+        onClick={() => editor.chain().focus().setHorizontalRule().run()}
+      >
+        <Minus className="h-4 w-4" />
+      </ToolbarBtn>
       <Sep />
-      <ToolbarBtn title="Insérer un lien" onClick={setLink} active={editor.isActive("link")}><LinkIcon className="h-4 w-4" /></ToolbarBtn>
-      <ToolbarBtn title="Insérer une image" onClick={insertImage}><ImageIcon className="h-4 w-4" /></ToolbarBtn>
-      <ToolbarBtn title="Insérer un tableau" onClick={insertTable}><TableIcon className="h-4 w-4" /></ToolbarBtn>
+      <ToolbarBtn title="Insérer un lien" onClick={setLink} active={editor.isActive("link")}>
+        <LinkIcon className="h-4 w-4" />
+      </ToolbarBtn>
+      <ToolbarBtn title="Insérer une image" onClick={insertImage}>
+        <ImageIcon className="h-4 w-4" />
+      </ToolbarBtn>
+      <ToolbarBtn title="Insérer un tableau" onClick={insertTable}>
+        <TableIcon className="h-4 w-4" />
+      </ToolbarBtn>
       <Sep />
-      <ToolbarBtn title="Effacer le formatage" onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()}><Eraser className="h-4 w-4" /></ToolbarBtn>
+      <ToolbarBtn
+        title="Effacer le formatage"
+        onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()}
+      >
+        <Eraser className="h-4 w-4" />
+      </ToolbarBtn>
     </div>
   );
 }
@@ -174,7 +342,11 @@ export function RichTextEditor({
       FontFamily,
       Highlight.configure({ multicolor: false }),
       TextAlign.configure({ types: ["heading", "paragraph"] }),
-      Link.configure({ openOnClick: false, autolink: true, HTMLAttributes: { class: "text-primary underline" } }),
+      Link.configure({
+        openOnClick: false,
+        autolink: true,
+        HTMLAttributes: { class: "text-primary underline" },
+      }),
       Image.configure({ inline: false, HTMLAttributes: { class: "rounded-md max-w-full" } }),
       TaskList,
       TaskItem.configure({ nested: true }),

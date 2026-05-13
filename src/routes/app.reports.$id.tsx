@@ -8,7 +8,15 @@ import { RichTextEditor } from "@/components/rich-text-editor";
 import { Document, Packer, Paragraph, HeadingLevel, TextRun } from "docx";
 import { jsPDF } from "jspdf";
 
-type RateStat = { first: number; last: number; min: number; max: number; avg: number; variation: number; count: number };
+type RateStat = {
+  first: number;
+  last: number;
+  min: number;
+  max: number;
+  avg: number;
+  variation: number;
+  count: number;
+};
 type Stats = {
   documents: { count: number; totalSize: number; byCategory: Record<string, number> };
   versions: { count: number };
@@ -47,7 +55,10 @@ function monthLabelOf(mo: string) {
 }
 
 function escapeHtml(s: string) {
-  return (s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c] as string));
+  return (s ?? "").replace(
+    /[&<>"]/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] as string,
+  );
 }
 
 function rateRowHtml(label: string, st: RateStat | null) {
@@ -88,7 +99,9 @@ function buildHtml(r: Report, s: Stats, mo: string) {
 `;
 }
 
-function htmlToPlainBlocks(html: string): { text: string; level: 0 | 1 | 2 | 3; bullet?: boolean }[] {
+function htmlToPlainBlocks(
+  html: string,
+): { text: string; level: 0 | 1 | 2 | 3; bullet?: boolean }[] {
   const div = document.createElement("div");
   div.innerHTML = html;
   const out: { text: string; level: 0 | 1 | 2 | 3; bullet?: boolean }[] = [];
@@ -119,9 +132,21 @@ function downloadBlob(blob: Blob, filename: string) {
 async function exportDocx(html: string, filename: string) {
   const blocks = htmlToPlainBlocks(html);
   const children = blocks.map((b) => {
-    if (b.level === 1) return new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: b.text, bold: true })] });
-    if (b.level === 2) return new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text: b.text, bold: true })] });
-    if (b.level === 3) return new Paragraph({ heading: HeadingLevel.HEADING_3, children: [new TextRun({ text: b.text, bold: true })] });
+    if (b.level === 1)
+      return new Paragraph({
+        heading: HeadingLevel.HEADING_1,
+        children: [new TextRun({ text: b.text, bold: true })],
+      });
+    if (b.level === 2)
+      return new Paragraph({
+        heading: HeadingLevel.HEADING_2,
+        children: [new TextRun({ text: b.text, bold: true })],
+      });
+    if (b.level === 3)
+      return new Paragraph({
+        heading: HeadingLevel.HEADING_3,
+        children: [new TextRun({ text: b.text, bold: true })],
+      });
     if (b.bullet) return new Paragraph({ text: b.text, bullet: { level: 0 } });
     return new Paragraph({ children: [new TextRun(b.text)] });
   });
@@ -137,21 +162,47 @@ function exportPdf(html: string, filename: string) {
   const pageW = pdf.internal.pageSize.getWidth();
   const pageH = pdf.internal.pageSize.getHeight();
   let y = margin;
-  const ensure = (h: number) => { if (y + h > pageH - margin) { pdf.addPage(); y = margin; } };
-  const write = (text: string, size: number, bold: boolean, color: [number, number, number], indent = 0) => {
+  const ensure = (h: number) => {
+    if (y + h > pageH - margin) {
+      pdf.addPage();
+      y = margin;
+    }
+  };
+  const write = (
+    text: string,
+    size: number,
+    bold: boolean,
+    color: [number, number, number],
+    indent = 0,
+  ) => {
     pdf.setFont("helvetica", bold ? "bold" : "normal");
     pdf.setFontSize(size);
     pdf.setTextColor(...color);
     const lines = pdf.splitTextToSize(text, pageW - margin * 2 - indent);
     const lh = size * 1.35;
-    for (const l of lines) { ensure(lh); pdf.text(l, margin + indent, y); y += lh; }
+    for (const l of lines) {
+      ensure(lh);
+      pdf.text(l, margin + indent, y);
+      y += lh;
+    }
   };
   for (const b of blocks) {
-    if (b.level === 1) { y += 6; write(b.text, 18, true, [10, 30, 80]); y += 4; }
-    else if (b.level === 2) { y += 6; write(b.text, 14, true, [20, 60, 120]); y += 2; }
-    else if (b.level === 3) { y += 4; write(b.text, 12, true, [30, 30, 30]); }
-    else if (b.bullet) { write(`• ${b.text}`, 11, false, [30, 30, 30], 12); }
-    else { write(b.text, 11, false, [30, 30, 30]); }
+    if (b.level === 1) {
+      y += 6;
+      write(b.text, 18, true, [10, 30, 80]);
+      y += 4;
+    } else if (b.level === 2) {
+      y += 6;
+      write(b.text, 14, true, [20, 60, 120]);
+      y += 2;
+    } else if (b.level === 3) {
+      y += 4;
+      write(b.text, 12, true, [30, 30, 30]);
+    } else if (b.bullet) {
+      write(`• ${b.text}`, 11, false, [30, 30, 30], 12);
+    } else {
+      write(b.text, 11, false, [30, 30, 30]);
+    }
   }
   pdf.save(filename);
 }
@@ -186,7 +237,9 @@ function ReportViewer() {
         if (active) setLoading(false);
       }
     })();
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [id, navigate]);
 
   const baseName = useMemo(() => `rapport-kaayu-${month || "rapport"}`, [month]);
@@ -197,7 +250,9 @@ function ReportViewer() {
     <div className="mx-auto max-w-5xl space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="ghost" size="sm" asChild>
-          <Link to="/app/reports"><ArrowLeft className="mr-1 h-4 w-4" /> Retour</Link>
+          <Link to="/app/reports">
+            <ArrowLeft className="mr-1 h-4 w-4" /> Retour
+          </Link>
         </Button>
         <h1 className="text-lg font-semibold">Rapport — {month ? monthLabelOf(month) : ""}</h1>
         <div className="ml-auto flex gap-2">

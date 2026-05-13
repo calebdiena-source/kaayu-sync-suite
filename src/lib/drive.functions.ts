@@ -32,11 +32,18 @@ export const driveAvailable = createServerFn({ method: "GET" })
   });
 
 export const uploadDocumentToDrive = createServerFn({ method: "POST" })
-  .inputValidator((d: { name: string; mimeType: string; dataB64: string; folderId?: string | null }) => d)
+  .inputValidator(
+    (d: { name: string; mimeType: string; dataB64: string; folderId?: string | null }) => d,
+  )
   .middleware([requireSupabaseAuth])
   .handler(async ({ data, context }) => {
     const bytes = b64ToBytes(data.dataB64);
-    const result = await uploadToDrive(context.userId, data.name, data.mimeType || "application/octet-stream", bytes);
+    const result = await uploadToDrive(
+      context.userId,
+      data.name,
+      data.mimeType || "application/octet-stream",
+      bytes,
+    );
     if (!result) throw new Error("Google Drive non connecté");
     const { data: doc, error } = await supabaseAdmin
       .from("documents")

@@ -4,10 +4,23 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { NotebookPen, Plus, Search, Pin, Trash2, Folder, FolderPlus, FolderInput } from "lucide-react";
 import {
-  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
-  DropdownMenuLabel, DropdownMenuSeparator,
+  NotebookPen,
+  Plus,
+  Search,
+  Pin,
+  Trash2,
+  Folder,
+  FolderPlus,
+  FolderInput,
+} from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 
@@ -47,11 +60,17 @@ function NotesListPage() {
     if (!user) return;
     setLoading(true);
     const [{ data: n, error }, { data: f }] = await Promise.all([
-      supabase.from("notes").select("*")
+      supabase
+        .from("notes")
+        .select("*")
         .order("pinned", { ascending: false })
         .order("updated_at", { ascending: false }),
-      supabase.from("folders").select("id,name")
-        .eq("user_id", user.id).eq("kind", "note").order("name"),
+      supabase
+        .from("folders")
+        .select("id,name")
+        .eq("user_id", user.id)
+        .eq("kind", "note")
+        .order("name"),
     ]);
     if (error) toast.error(error.message);
     else setNotes((n ?? []) as Note[]);
@@ -59,7 +78,9 @@ function NotesListPage() {
     setLoading(false);
   };
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, [user?.id]);
+  useEffect(() => {
+    load(); /* eslint-disable-next-line */
+  }, [user?.id]);
 
   const createNote = async () => {
     if (!user) return;
@@ -75,50 +96,69 @@ function NotesListPage() {
 
   const togglePin = async (n: Note) => {
     const { error } = await supabase.from("notes").update({ pinned: !n.pinned }).eq("id", n.id);
-    if (error) toast.error(error.message); else load();
+    if (error) toast.error(error.message);
+    else load();
   };
 
   const remove = async (id: string) => {
     if (!confirm("Supprimer cette note ?")) return;
     const { error } = await supabase.from("notes").delete().eq("id", id);
     if (error) toast.error(error.message);
-    else { toast.success("Note supprimée"); load(); }
+    else {
+      toast.success("Note supprimée");
+      load();
+    }
   };
 
   const moveTo = async (noteId: string, folder_id: string | null) => {
     const { error } = await supabase.from("notes").update({ folder_id }).eq("id", noteId);
     if (error) toast.error(error.message);
-    else { toast.success(folder_id ? "Note déplacée" : "Note retirée du dossier"); load(); }
+    else {
+      toast.success(folder_id ? "Note déplacée" : "Note retirée du dossier");
+      load();
+    }
   };
 
   const createFolder = async () => {
     if (!user) return;
     const name = prompt("Nom du dossier :");
     if (!name) return;
-    const { error } = await supabase.from("folders").insert({ user_id: user.id, name, kind: "note" });
-    if (error) toast.error(error.message); else load();
+    const { error } = await supabase
+      .from("folders")
+      .insert({ user_id: user.id, name, kind: "note" });
+    if (error) toast.error(error.message);
+    else load();
   };
 
   const renameFolder = async (f: Folder) => {
     const name = prompt("Nouveau nom :", f.name);
     if (!name || name === f.name) return;
     const { error } = await supabase.from("folders").update({ name }).eq("id", f.id);
-    if (error) toast.error(error.message); else load();
+    if (error) toast.error(error.message);
+    else load();
   };
 
   const deleteFolder = async (f: Folder) => {
-    if (!confirm(`Supprimer le dossier « ${f.name} » ? Les notes ne seront pas supprimées.`)) return;
+    if (!confirm(`Supprimer le dossier « ${f.name} » ? Les notes ne seront pas supprimées.`))
+      return;
     await supabase.from("notes").update({ folder_id: null }).eq("folder_id", f.id);
     const { error } = await supabase.from("folders").delete().eq("id", f.id);
     if (error) toast.error(error.message);
-    else { toast.success("Dossier supprimé"); if (activeFolder === f.id) setActiveFolder("all"); load(); }
+    else {
+      toast.success("Dossier supprimé");
+      if (activeFolder === f.id) setActiveFolder("all");
+      load();
+    }
   };
 
   const filtered = notes.filter((n) => {
     if (activeFolder === "none" && n.folder_id) return false;
-    if (activeFolder !== "all" && activeFolder !== "none" && n.folder_id !== activeFolder) return false;
+    if (activeFolder !== "all" && activeFolder !== "none" && n.folder_id !== activeFolder)
+      return false;
     const q = query.toLowerCase();
-    return !q || n.title.toLowerCase().includes(q) || stripHtml(n.content).toLowerCase().includes(q);
+    return (
+      !q || n.title.toLowerCase().includes(q) || stripHtml(n.content).toLowerCase().includes(q)
+    );
   });
 
   const counts = {
@@ -141,7 +181,11 @@ function NotesListPage() {
         <aside className="space-y-1 rounded-xl border bg-card p-3">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-xs font-semibold uppercase text-muted-foreground">Dossiers</span>
-            <button onClick={createFolder} className="rounded p-1 hover:bg-accent" title="Nouveau dossier">
+            <button
+              onClick={createFolder}
+              className="rounded p-1 hover:bg-accent"
+              title="Nouveau dossier"
+            >
               <FolderPlus className="h-3.5 w-3.5" />
             </button>
           </div>
@@ -168,13 +212,19 @@ function NotesListPage() {
               >
                 <Folder className="h-3.5 w-3.5 text-primary" />
                 <span className="line-clamp-1 flex-1">{f.name}</span>
-                <span className="text-xs text-muted-foreground">{notes.filter((n) => n.folder_id === f.id).length}</span>
+                <span className="text-xs text-muted-foreground">
+                  {notes.filter((n) => n.folder_id === f.id).length}
+                </span>
               </button>
               <DropdownMenu>
-                <DropdownMenuTrigger className="rounded p-1 opacity-0 hover:bg-accent group-hover:opacity-100">⋯</DropdownMenuTrigger>
+                <DropdownMenuTrigger className="rounded p-1 opacity-0 hover:bg-accent group-hover:opacity-100">
+                  ⋯
+                </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem onClick={() => renameFolder(f)}>Renommer</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => deleteFolder(f)} className="text-destructive">Supprimer</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => deleteFolder(f)} className="text-destructive">
+                    Supprimer
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -184,7 +234,12 @@ function NotesListPage() {
         <div className="space-y-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Rechercher dans les notes…" className="pl-9" />
+            <Input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Rechercher dans les notes…"
+              className="pl-9"
+            />
           </div>
 
           {loading ? (
@@ -192,12 +247,17 @@ function NotesListPage() {
           ) : filtered.length === 0 ? (
             <div className="rounded-xl border bg-card p-8 text-center">
               <p className="text-sm text-muted-foreground">Aucune note ici.</p>
-              <Button className="mt-3" onClick={createNote}><Plus className="mr-1 h-4 w-4" /> Nouvelle note</Button>
+              <Button className="mt-3" onClick={createNote}>
+                <Plus className="mr-1 h-4 w-4" /> Nouvelle note
+              </Button>
             </div>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {filtered.map((n) => (
-                <div key={n.id} className="group relative rounded-xl border bg-card p-4 transition hover:shadow-md">
+                <div
+                  key={n.id}
+                  className="group relative rounded-xl border bg-card p-4 transition hover:shadow-md"
+                >
                   <Link to="/app/notes/$id" params={{ id: n.id }} className="block">
                     <div className="flex items-start gap-2">
                       {n.pinned && <Pin className="h-3.5 w-3.5 shrink-0 text-primary" />}
@@ -224,20 +284,34 @@ function NotesListPage() {
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Déplacer vers</DropdownMenuLabel>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => moveTo(n.id, null)}>Aucun dossier</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => moveTo(n.id, null)}>
+                          Aucun dossier
+                        </DropdownMenuItem>
                         {folders.map((f) => (
                           <DropdownMenuItem key={f.id} onClick={() => moveTo(n.id, f.id)}>
-                            <Folder className="mr-2 h-3.5 w-3.5" />{f.name}
+                            <Folder className="mr-2 h-3.5 w-3.5" />
+                            {f.name}
                           </DropdownMenuItem>
                         ))}
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={createFolder}><FolderPlus className="mr-2 h-3.5 w-3.5" />Nouveau dossier…</DropdownMenuItem>
+                        <DropdownMenuItem onClick={createFolder}>
+                          <FolderPlus className="mr-2 h-3.5 w-3.5" />
+                          Nouveau dossier…
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
-                    <button onClick={() => togglePin(n)} className="rounded p-1 hover:bg-accent" title="Épingler">
+                    <button
+                      onClick={() => togglePin(n)}
+                      className="rounded p-1 hover:bg-accent"
+                      title="Épingler"
+                    >
                       <Pin className={`h-3.5 w-3.5 ${n.pinned ? "text-primary" : ""}`} />
                     </button>
-                    <button onClick={() => remove(n.id)} className="rounded p-1 hover:bg-destructive/10" title="Supprimer">
+                    <button
+                      onClick={() => remove(n.id)}
+                      className="rounded p-1 hover:bg-destructive/10"
+                      title="Supprimer"
+                    >
                       <Trash2 className="h-3.5 w-3.5 text-destructive" />
                     </button>
                   </div>
