@@ -251,13 +251,17 @@ function DocsPage() {
               <thead className="bg-muted/50 text-xs uppercase tracking-wider text-muted-foreground">
                 <tr>
                   <th className="px-3 py-2 text-left font-medium">Nom</th>
+                  <th className="px-3 py-2 text-left font-medium">Dossier</th>
                   <th className="px-3 py-2 text-left font-medium">Taille</th>
                   <th className="px-3 py-2 text-left font-medium">Date</th>
                   <th className="px-3 py-2"></th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((d) => (
+                {filtered.map((d) => {
+                  const currentFolder = folders.find((f) => f.id === d.folder_id);
+                  const isOwner = d.user_id === user?.id;
+                  return (
                   <tr
                     key={d.id}
                     className="cursor-pointer border-t hover:bg-muted/30"
@@ -269,19 +273,49 @@ function DocsPage() {
                         <FileText className="h-4 w-4 text-primary" /> {d.name}
                       </Link>
                     </td>
+                    <td className="px-3 py-2 text-muted-foreground">
+                      {currentFolder ? (
+                        <span className="inline-flex items-center gap-1"><Folder className="h-3.5 w-3.5 text-primary" />{currentFolder.name}</span>
+                      ) : "—"}
+                    </td>
                     <td className="px-3 py-2 text-muted-foreground">{d.size_bytes ? `${(d.size_bytes / 1024).toFixed(1)} Ko` : "—"}</td>
                     <td className="px-3 py-2 text-muted-foreground">{new Date(d.created_at).toLocaleString("fr-FR")}</td>
                     <td className="px-3 py-2 text-right">
-                      {d.user_id === user?.id && (
+                      {isOwner && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button size="icon" variant="ghost" title="Déplacer vers un dossier"><FolderInput className="h-4 w-4" /></Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-56">
+                            <DropdownMenuLabel>Déplacer vers…</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => moveDoc(d, null)} disabled={!d.folder_id}>
+                              <Folder className="mr-2 h-4 w-4 opacity-50" /> Aucun dossier
+                            </DropdownMenuItem>
+                            {folders.length > 0 && <DropdownMenuSeparator />}
+                            {folders.map((f) => (
+                              <DropdownMenuItem key={f.id} onClick={() => moveDoc(d, f.id)} disabled={d.folder_id === f.id}>
+                                <Folder className="mr-2 h-4 w-4 text-primary" /> {f.name}
+                              </DropdownMenuItem>
+                            ))}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => moveToNewFolder(d)}>
+                              <FolderPlus className="mr-2 h-4 w-4" /> Nouveau dossier…
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                      {isOwner && (
                         <Button size="icon" variant="ghost" onClick={() => setShareDocId(d.id)}><Share2 className="h-4 w-4" /></Button>
                       )}
                       <Button size="icon" variant="ghost" onClick={() => download(d)}><Download className="h-4 w-4" /></Button>
-                      {d.user_id === user?.id && (
+                      {isOwner && (
                         <Button size="icon" variant="ghost" onClick={() => remove(d)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                       )}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           )}
