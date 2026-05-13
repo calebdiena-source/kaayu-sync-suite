@@ -13,7 +13,7 @@ import { AIAssistant } from "@/components/ai-assistant";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 
 const NAV = [
-  { to: "/app", label: "Tableau de bord", icon: LayoutDashboard },
+  { to: "/app/dashboard", label: "Tableau de bord", icon: LayoutDashboard },
   { to: "/app/documents", label: "Documents", icon: FolderOpen },
   { to: "/app/meetings", label: "Réunions", icon: Users2 },
   { to: "/app/calendar", label: "Calendrier", icon: CalendarDays },
@@ -31,8 +31,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [dark, setDark] = useState(false);
 
   useEffect(() => {
-    if (!loading && !user) navigate({ to: "/login" });
-  }, [user, loading, navigate]);
+    if (loading) return;
+    if (!user) {
+      navigate({ to: "/login" });
+      return;
+    }
+    if (location.pathname === "/app" || location.pathname === "/app/") {
+      navigate({ to: "/app/dashboard", replace: true });
+    }
+  }, [user, loading, navigate, location.pathname]);
+
+  useEffect(() => {
+    if (!loading) return;
+
+    const timeout = window.setTimeout(async () => {
+      const { data } = await supabase.auth.getSession();
+      void navigate({ to: data.session ? "/app/dashboard" : "/login", replace: true });
+    }, 3000);
+
+    return () => window.clearTimeout(timeout);
+  }, [loading, navigate]);
 
   useEffect(() => {
     const stored = localStorage.getItem("theme");
@@ -72,7 +90,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <nav className="flex flex-col gap-0.5 p-3">
           {NAV.map((item) => {
             const Icon = item.icon;
-            const active = location.pathname === item.to || (item.to !== "/app" && location.pathname.startsWith(item.to));
+            const active = location.pathname === item.to || location.pathname.startsWith(item.to);
             return (
               <Link
                 key={item.to}

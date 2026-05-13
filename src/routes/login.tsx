@@ -13,7 +13,7 @@ export const Route = createFileRoute("/login")({
 });
 
 function LoginPage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
@@ -21,7 +21,7 @@ function LoginPage() {
   const [name, setName] = useState("");
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => { if (user) navigate({ to: "/app" }); }, [user, navigate]);
+  useEffect(() => { if (!authLoading && user) navigate({ to: "/app/dashboard" }); }, [user, authLoading, navigate]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,7 +38,7 @@ function LoginPage() {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
       }
-      navigate({ to: "/app" });
+      navigate({ to: "/app/dashboard" });
     } catch (err: any) {
       toast.error(err.message || "Erreur");
     } finally { setLoading(false); }
@@ -112,7 +112,7 @@ function LoginPage() {
               setLoading(true);
               try {
                 const result = await lovable.auth.signInWithOAuth("google", {
-                  redirect_uri: `${window.location.origin}/app`,
+                  redirect_uri: `${window.location.origin}/app/dashboard`,
                 });
                 if (result.error) throw result.error;
               } catch (err: any) {

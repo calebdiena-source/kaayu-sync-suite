@@ -15,7 +15,7 @@ export const Route = createFileRoute("/")({
 function Home() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
-  useEffect(() => { if (!loading && user) navigate({ to: "/app" }); }, [user, loading, navigate]);
+  useEffect(() => { if (!loading && user) navigate({ to: "/app/dashboard" }); }, [user, loading, navigate]);
 
   const features = [
     { icon: FileText, title: "Stockage cloud", text: "Documents sécurisés, dossiers, partage." },
