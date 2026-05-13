@@ -118,8 +118,24 @@ function DocsPage() {
   const createFolder = async () => {
     const name = prompt("Nom du dossier :");
     if (!name || !user) return;
-    const { error } = await supabase.from("folders").insert({ user_id: user.id, name, parent_id: folderId });
+    const { error } = await supabase.from("folders").insert({ user_id: user.id, name, parent_id: folderId, kind: "document" });
     if (error) toast.error(error.message); else { toast.success("Dossier créé"); load(); }
+  };
+
+  const moveDoc = async (d: Doc, targetFolderId: string | null) => {
+    const { error } = await supabase.from("documents").update({ folder_id: targetFolderId }).eq("id", d.id);
+    if (error) return toast.error(error.message);
+    toast.success(targetFolderId ? "Déplacé dans le dossier" : "Retiré du dossier");
+    load();
+  };
+
+  const moveToNewFolder = async (d: Doc) => {
+    if (!user) return;
+    const name = prompt("Nom du nouveau dossier :");
+    if (!name) return;
+    const { data: nf, error } = await supabase.from("folders").insert({ user_id: user.id, name, kind: "document" }).select().single();
+    if (error || !nf) return toast.error(error?.message ?? "Erreur");
+    await moveDoc(d, nf.id);
   };
 
   const remove = async (d: Doc) => {
