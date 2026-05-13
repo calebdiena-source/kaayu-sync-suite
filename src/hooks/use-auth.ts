@@ -11,24 +11,41 @@ export function useAuth() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
+    let active = true;
+    let currentUserId: string | null = null;
+
+    const loadRoles = async (userId: string) => {
+      const { data } = await supabase.from("user_roles").select("role").eq("user_id", userId);
+      if (active && currentUserId === userId) {
+        setRoles((data ?? []).map((r) => r.role as AppRole));
+      }
+    };
+
+    const applySession = (s: Session | null) => {
+      if (!active) return;
       setSession(s);
       setUser(s?.user ?? null);
+      currentUserId = s?.user?.id ?? null;
       if (s?.user) {
-        setTimeout(async () => {
-          const { data } = await supabase.from("user_roles").select("role").eq("user_id", s.user.id);
-          setRoles((data ?? []).map((r) => r.role as AppRole));
-        }, 0);
+        void loadRoles(s.user.id);
       } else {
         setRoles([]);
       }
-    });
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setUser(data.session?.user ?? null);
       setLoading(false);
+    };
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
+      applySession(s);
     });
-    return () => sub.subscription.unsubscribe();
+
+    supabase.auth.getSession()
+      .then(({ data }) => applySession(data.session))
+      .catch(() => applySession(null));
+
+    return () => {
+      active = false;
+      sub.subscription.unsubscribe();
+    };
   }, []);
 
   return { session, user, roles, loading, isAdmin: roles.includes("admin") };
