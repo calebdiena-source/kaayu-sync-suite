@@ -12,6 +12,7 @@ export function useAuth() {
 
   useEffect(() => {
     let active = true;
+    let initialSessionLoaded = false;
 
     const loadRoles = async (userId: string) => {
       const { data } = await supabase.from("user_roles").select("role").eq("user_id", userId);
@@ -31,20 +32,30 @@ export function useAuth() {
       setLoading(false);
     };
 
-    // 1) Subscribe FIRST so we don't miss SIGNED_IN events.
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
+    // Subscribe first, but don't let an early null INITIAL_SESSION redirect
+    // protected pages before storage restoration has completed.
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
+      if (!initialSessionLoaded && event === "INITIAL_SESSION") return;
       apply(s);
     });
 
-    // 2) Then fetch the current session (restored from storage).
     supabase.auth.getSession()
-      .then(({ data }) => apply(data.session))
-      .catch(() => apply(null));
+      .then(({ data }) => {
+        initialSessionLoaded = true;
+        apply(data.session);
+      })
+      .catch(() => {
+        initialSessionLoaded = true;
+        apply(null);
+      });
 
-    // 3) Safety net: never block UI more than 2s on auth restore.
+    // Safety net: never block UI indefinitely on auth restore.
     const t = setTimeout(() => {
-      if (active) setLoading(false);
-    }, 2000);
+      if (active && !initialSessionLoaded) {
+        initialSessionLoaded = true;
+        apply(null);
+      }
+    }, 4000);
 
     return () => {
       active = false;
