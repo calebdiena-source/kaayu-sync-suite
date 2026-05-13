@@ -123,15 +123,28 @@ function DocsPage() {
 
   const remove = async (d: Doc) => {
     if (!confirm(`Supprimer "${d.name}" ?`)) return;
-    await supabase.storage.from("documents").remove([d.storage_path]);
-    await supabase.from("documents").delete().eq("id", d.id);
-    toast.success("Supprimé"); load();
+    try {
+      if (d.storage_provider === "drive" && d.google_file_id) {
+        await deleteDrive({ data: { fileId: d.google_file_id } });
+      } else {
+        await supabase.storage.from("documents").remove([d.storage_path]);
+      }
+      await supabase.from("documents").delete().eq("id", d.id);
+      toast.success("Supprimé"); load();
+    } catch (e: any) { toast.error(e.message); }
   };
 
   const download = async (d: Doc) => {
-    const { data, error } = await supabase.storage.from("documents").createSignedUrl(d.storage_path, 60);
-    if (error) return toast.error(error.message);
-    window.open(data.signedUrl, "_blank");
+    try {
+      if (d.storage_provider === "drive") {
+        const r = await downloadDrive({ data: { documentId: d.id } });
+        downloadB64(r.name, r.mimeType, r.dataB64);
+        return;
+      }
+      const { data, error } = await supabase.storage.from("documents").createSignedUrl(d.storage_path, 60);
+      if (error) return toast.error(error.message);
+      window.open(data.signedUrl, "_blank");
+    } catch (e: any) { toast.error(e.message); }
   };
 
   const submitNote = () => {
