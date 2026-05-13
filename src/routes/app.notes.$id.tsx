@@ -106,7 +106,9 @@ function NoteEditorPage() {
         try {
           const c = JSON.parse(cached) as Note;
           if (!cancelled) { setNote(c); setTitle(c.title); setHtml(c.content || "<p></p>"); }
-        } catch {}
+        } catch {
+          localStorage.removeItem(cacheKey(id));
+        }
       }
       const { data, error } = await supabase.from("notes").select("*").eq("id", id).maybeSingle();
       if (cancelled) return;
@@ -165,7 +167,9 @@ function NoteEditorPage() {
         lastSavedRef.current = p;
         toast.success("Modifications synchronisées");
       }
-    } catch {}
+    } catch {
+      localStorage.removeItem(pendingKey(id));
+    }
   };
 
   // Save on title or content change
