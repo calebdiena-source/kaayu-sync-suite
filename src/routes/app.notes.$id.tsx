@@ -38,7 +38,10 @@ async function htmlToDocxBlob(title: string, html: string): Promise<Blob> {
   const container = document.createElement("div");
   container.innerHTML = html;
   const paragraphs: Paragraph[] = [
-    new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: title, bold: true })] }),
+    new Paragraph({
+      heading: HeadingLevel.HEADING_1,
+      children: [new TextRun({ text: title, bold: true })],
+    }),
   ];
   const walk = (node: Node) => {
     if (node.nodeType === Node.TEXT_NODE) {
@@ -50,17 +53,48 @@ async function htmlToDocxBlob(title: string, html: string): Promise<Blob> {
     const tag = node.tagName.toLowerCase();
     const text = node.textContent ?? "";
     switch (tag) {
-      case "h1": paragraphs.push(new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text, bold: true })] })); break;
-      case "h2": paragraphs.push(new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text, bold: true })] })); break;
-      case "h3": paragraphs.push(new Paragraph({ heading: HeadingLevel.HEADING_3, children: [new TextRun({ text, bold: true })] })); break;
-      case "li": paragraphs.push(new Paragraph({ text, bullet: { level: 0 } })); break;
-      case "ul": case "ol": node.childNodes.forEach(walk); break;
-      case "p": case "div": case "blockquote":
+      case "h1":
+        paragraphs.push(
+          new Paragraph({
+            heading: HeadingLevel.HEADING_1,
+            children: [new TextRun({ text, bold: true })],
+          }),
+        );
+        break;
+      case "h2":
+        paragraphs.push(
+          new Paragraph({
+            heading: HeadingLevel.HEADING_2,
+            children: [new TextRun({ text, bold: true })],
+          }),
+        );
+        break;
+      case "h3":
+        paragraphs.push(
+          new Paragraph({
+            heading: HeadingLevel.HEADING_3,
+            children: [new TextRun({ text, bold: true })],
+          }),
+        );
+        break;
+      case "li":
+        paragraphs.push(new Paragraph({ text, bullet: { level: 0 } }));
+        break;
+      case "ul":
+      case "ol":
+        node.childNodes.forEach(walk);
+        break;
+      case "p":
+      case "div":
+      case "blockquote":
         if (text.trim()) paragraphs.push(new Paragraph({ children: [new TextRun(text)] }));
         else node.childNodes.forEach(walk);
         break;
-      case "br": paragraphs.push(new Paragraph({ children: [] })); break;
-      default: node.childNodes.forEach(walk);
+      case "br":
+        paragraphs.push(new Paragraph({ children: [] }));
+        break;
+      default:
+        node.childNodes.forEach(walk);
     }
   };
   container.childNodes.forEach(walk);
@@ -87,11 +121,17 @@ function NoteEditorPage() {
 
   // Online/offline listeners
   useEffect(() => {
-    const on = () => { setOnline(true); flushPending(); };
+    const on = () => {
+      setOnline(true);
+      flushPending();
+    };
     const off = () => setOnline(false);
     window.addEventListener("online", on);
     window.addEventListener("offline", off);
-    return () => { window.removeEventListener("online", on); window.removeEventListener("offline", off); };
+    return () => {
+      window.removeEventListener("online", on);
+      window.removeEventListener("offline", off);
+    };
     // eslint-disable-next-line
   }, [id]);
 
@@ -105,36 +145,59 @@ function NoteEditorPage() {
       if (cached) {
         try {
           const c = JSON.parse(cached) as Note;
-          if (!cancelled) { setNote(c); setTitle(c.title); setHtml(c.content || "<p></p>"); }
+          if (!cancelled) {
+            setNote(c);
+            setTitle(c.title);
+            setHtml(c.content || "<p></p>");
+          }
         } catch {
           localStorage.removeItem(cacheKey(id));
         }
       }
       const { data, error } = await supabase.from("notes").select("*").eq("id", id).maybeSingle();
       if (cancelled) return;
-      if (error) { toast.error(error.message); setLoading(false); return; }
-      if (!data) { toast.error("Note introuvable"); navigate({ to: "/app/notes" }); return; }
+      if (error) {
+        toast.error(error.message);
+        setLoading(false);
+        return;
+      }
+      if (!data) {
+        toast.error("Note introuvable");
+        navigate({ to: "/app/notes" });
+        return;
+      }
       const n = data as Note;
-      setNote(n); setTitle(n.title); setHtml(n.content || "<p></p>");
+      setNote(n);
+      setTitle(n.title);
+      setHtml(n.content || "<p></p>");
       lastSavedRef.current = { title: n.title, content: n.content };
       localStorage.setItem(cacheKey(id), JSON.stringify(n));
       setLoading(false);
       flushPending();
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line
   }, [id, user?.id]);
 
   const scheduleSave = () => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => { void save(); }, 1200);
+    saveTimer.current = setTimeout(() => {
+      void save();
+    }, 1200);
   };
 
   const save = async () => {
     if (!note) return;
     const content = htmlRef.current;
     const newTitle = titleRef.current.trim() || "Sans titre";
-    if (lastSavedRef.current && lastSavedRef.current.title === newTitle && lastSavedRef.current.content === content) return;
+    if (
+      lastSavedRef.current &&
+      lastSavedRef.current.title === newTitle &&
+      lastSavedRef.current.content === content
+    )
+      return;
     setStatus("saving");
     const updated = { ...note, title: newTitle, content, updated_at: new Date().toISOString() };
     localStorage.setItem(cacheKey(id), JSON.stringify(updated));
@@ -143,7 +206,10 @@ function NoteEditorPage() {
       setStatus("offline");
       return;
     }
-    const { error } = await supabase.from("notes").update({ title: newTitle, content }).eq("id", id);
+    const { error } = await supabase
+      .from("notes")
+      .update({ title: newTitle, content })
+      .eq("id", id);
     if (error) {
       localStorage.setItem(pendingKey(id), JSON.stringify({ title: newTitle, content }));
       setStatus("offline");
@@ -173,10 +239,17 @@ function NoteEditorPage() {
   };
 
   // Save on title or content change
-  useEffect(() => { if (!loading) scheduleSave(); /* eslint-disable-next-line */ }, [title, html]);
+  useEffect(() => {
+    if (!loading) scheduleSave(); /* eslint-disable-next-line */
+  }, [title, html]);
 
   // Save on unmount
-  useEffect(() => () => { void save(); /* eslint-disable-next-line */ }, []);
+  useEffect(
+    () => () => {
+      void save(); /* eslint-disable-next-line */
+    },
+    [],
+  );
 
   const remove = async () => {
     if (!confirm("Supprimer cette note ?")) return;
@@ -199,7 +272,9 @@ function NoteEditorPage() {
     const blob = await htmlToDocxBlob(title || "Note", html);
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = `${title || "Note"}.docx`; a.click();
+    a.href = url;
+    a.download = `${title || "Note"}.docx`;
+    a.click();
     URL.revokeObjectURL(url);
   };
 
@@ -208,14 +283,37 @@ function NoteEditorPage() {
   };
 
   if (loading || !note) {
-    return <div className="flex items-center justify-center p-12 text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Chargement…</div>;
+    return (
+      <div className="flex items-center justify-center p-12 text-muted-foreground">
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Chargement…
+      </div>
+    );
   }
 
   const StatusBadge = () => {
-    if (!online || status === "offline") return <span className="flex items-center gap-1 text-xs text-amber-600"><CloudOff className="h-3.5 w-3.5" /> Hors-ligne</span>;
-    if (status === "saving") return <span className="flex items-center gap-1 text-xs text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Enregistrement…</span>;
-    if (status === "saved") return <span className="flex items-center gap-1 text-xs text-emerald-600"><Cloud className="h-3.5 w-3.5" /> Enregistré</span>;
-    return <span className="flex items-center gap-1 text-xs text-muted-foreground"><Cloud className="h-3.5 w-3.5" /> À jour</span>;
+    if (!online || status === "offline")
+      return (
+        <span className="flex items-center gap-1 text-xs text-amber-600">
+          <CloudOff className="h-3.5 w-3.5" /> Hors-ligne
+        </span>
+      );
+    if (status === "saving")
+      return (
+        <span className="flex items-center gap-1 text-xs text-muted-foreground">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Enregistrement…
+        </span>
+      );
+    if (status === "saved")
+      return (
+        <span className="flex items-center gap-1 text-xs text-emerald-600">
+          <Cloud className="h-3.5 w-3.5" /> Enregistré
+        </span>
+      );
+    return (
+      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+        <Cloud className="h-3.5 w-3.5" /> À jour
+      </span>
+    );
   };
 
   return (
@@ -227,11 +325,18 @@ function NoteEditorPage() {
         <StatusBadge />
         <div className="ml-auto flex flex-wrap gap-2">
           <Button size="sm" variant="outline" onClick={togglePin}>
-            <Pin className={`mr-1 h-4 w-4 ${note.pinned ? "text-primary" : ""}`} /> {note.pinned ? "Désépingler" : "Épingler"}
+            <Pin className={`mr-1 h-4 w-4 ${note.pinned ? "text-primary" : ""}`} />{" "}
+            {note.pinned ? "Désépingler" : "Épingler"}
           </Button>
-          <Button size="sm" variant="outline" onClick={downloadDocx}><Download className="mr-1 h-4 w-4" /> DOCX</Button>
-          <Button size="sm" variant="outline" onClick={downloadPdf}><Download className="mr-1 h-4 w-4" /> PDF</Button>
-          <Button size="sm" variant="destructive" onClick={remove}><Trash2 className="mr-1 h-4 w-4" /> Supprimer</Button>
+          <Button size="sm" variant="outline" onClick={downloadDocx}>
+            <Download className="mr-1 h-4 w-4" /> DOCX
+          </Button>
+          <Button size="sm" variant="outline" onClick={downloadPdf}>
+            <Download className="mr-1 h-4 w-4" /> PDF
+          </Button>
+          <Button size="sm" variant="destructive" onClick={remove}>
+            <Trash2 className="mr-1 h-4 w-4" /> Supprimer
+          </Button>
         </div>
       </div>
 
@@ -248,7 +353,11 @@ function NoteEditorPage() {
             <span>Modifié le {new Date(note.updated_at).toLocaleString("fr-FR")}</span>
           </div>
         </div>
-        <RichTextEditor value={html} onChange={setHtml} placeholder="Commencez à écrire votre note…" />
+        <RichTextEditor
+          value={html}
+          onChange={setHtml}
+          placeholder="Commencez à écrire votre note…"
+        />
       </div>
     </div>
   );
