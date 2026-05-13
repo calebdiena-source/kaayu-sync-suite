@@ -162,8 +162,8 @@ function LoginPage() {
                 if (result.redirected) return;
                 // Tokens received and session set — go to dashboard.
                 navigate({ to: "/app/dashboard" });
-              } catch (err: any) {
-                toast.error(err?.message || "Erreur Google");
+              } catch (err) {
+                toast.error(err instanceof Error ? err.message : "Erreur Google");
                 setLoading(false);
               }
             }}
