@@ -51,6 +51,7 @@ type HistoryItem = { id: string; month: string; created_at: string; stats: Stats
 
 function ReportsPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [month, setMonth] = useState(currentMonth());
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
