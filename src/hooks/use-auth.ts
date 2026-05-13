@@ -39,7 +39,8 @@ export function useAuth() {
       apply(s);
     });
 
-    supabase.auth.getSession()
+    supabase.auth
+      .getSession()
       .then(({ data }) => {
         initialSessionLoaded = true;
         apply(data.session);
