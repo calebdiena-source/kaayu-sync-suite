@@ -4,10 +4,17 @@ import { getRequestHost, getRequestHeader } from "@tanstack/react-start/server";
 import { buildAuthUrl, pushEvent, deleteEvent } from "./google-calendar.server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 
+// Use STABLE Lovable URLs so Google Cloud Console only needs to be configured once.
+// These never change, even if the project is renamed or republished.
+const PROJECT_ID = "3479a160-96fa-4b26-ae79-16c6abaa3b14";
+const STABLE_PROD = `https://project--${PROJECT_ID}.lovable.app`;
+const STABLE_DEV = `https://project--${PROJECT_ID}-dev.lovable.app`;
+
 function originFromRequest() {
-  const host = getRequestHost();
-  const proto = getRequestHeader("x-forwarded-proto") ?? "https";
-  return `${proto}://${host}`;
+  const host = getRequestHost() ?? "";
+  // Anything that isn't the published prod host is treated as preview/dev.
+  const isDev = host.includes("preview") || host.includes("-dev") || host.includes("localhost");
+  return isDev ? STABLE_DEV : STABLE_PROD;
 }
 
 export const startGoogleConnect = createServerFn({ method: "POST" })
