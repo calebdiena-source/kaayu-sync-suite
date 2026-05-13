@@ -31,8 +31,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [dark, setDark] = useState(false);
 
   useEffect(() => {
-    if (!loading && !user) navigate({ to: "/login" });
-  }, [user, loading, navigate]);
+    if (loading) return;
+    if (!user) {
+      navigate({ to: "/login" });
+      return;
+    }
+    if (location.pathname === "/app" || location.pathname === "/app/") {
+      navigate({ to: "/app/dashboard", replace: true });
+    }
+  }, [user, loading, navigate, location.pathname]);
 
   useEffect(() => {
     if (!loading) return;
