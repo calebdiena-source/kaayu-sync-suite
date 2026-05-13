@@ -91,18 +91,48 @@ export async function getValidAccessToken(userId: string): Promise<{ token: stri
   return { token, calendarId: data.calendar_id ?? "primary" };
 }
 
-type EventInput = { title: string; description?: string | null; start_at: string; end_at?: string | null; location?: string | null };
+type EventInput = {
+  title: string;
+  description?: string | null;
+  start_at: string;
+  end_at?: string | null;
+  location?: string | null;
+  reminder_minutes?: number | null;
+  color?: string | null;
+};
+
+// Map hex/name colors to Google Calendar colorId (1-11). Best-effort.
+const COLOR_TO_ID: Record<string, string> = {
+  "#7986CB": "1", "#33B679": "2", "#8E24AA": "3", "#E67C73": "4",
+  "#F6BF26": "5", "#F4511E": "6", "#039BE5": "7", "#616161": "8",
+  "#3F51B5": "9", "#0B8043": "10", "#D50000": "11",
+};
 
 export async function pushEvent(userId: string, ev: EventInput, googleEventId?: string | null): Promise<string | null> {
   const auth = await getValidAccessToken(userId);
   if (!auth) return null;
-  const body = {
+  const startIso = new Date(ev.start_at).toISOString();
+  const endIso = new Date(ev.end_at ?? new Date(new Date(ev.start_at).getTime() + 3600000).toISOString()).toISOString();
+  const reminders = ev.reminder_minutes && ev.reminder_minutes > 0
+    ? {
+        useDefault: false,
+        overrides: [
+          { method: "popup", minutes: ev.reminder_minutes },
+          { method: "email", minutes: ev.reminder_minutes },
+        ],
+      }
+    : { useDefault: true };
+  const body: Record<string, unknown> = {
     summary: ev.title,
     description: ev.description ?? undefined,
     location: ev.location ?? undefined,
-    start: { dateTime: new Date(ev.start_at).toISOString() },
-    end: { dateTime: new Date(ev.end_at ?? new Date(new Date(ev.start_at).getTime() + 3600000).toISOString()).toISOString() },
+    start: { dateTime: startIso },
+    end: { dateTime: endIso },
+    reminders,
   };
+  if (ev.color && COLOR_TO_ID[ev.color.toUpperCase()]) {
+    body.colorId = COLOR_TO_ID[ev.color.toUpperCase()];
+  }
   const url = googleEventId
     ? `${API}/calendars/${encodeURIComponent(auth.calendarId)}/events/${googleEventId}`
     : `${API}/calendars/${encodeURIComponent(auth.calendarId)}/events`;
@@ -123,4 +153,33 @@ export async function deleteEvent(userId: string, googleEventId: string) {
     method: "DELETE",
     headers: { Authorization: `Bearer ${auth.token}` },
   });
+}
+
+export type GoogleEvent = {
+  id: string;
+  summary?: string;
+  description?: string;
+  location?: string;
+  start?: { dateTime?: string; date?: string };
+  end?: { dateTime?: string; date?: string };
+  status?: string;
+  colorId?: string;
+};
+
+export async function listEvents(userId: string, timeMinIso: string, timeMaxIso: string): Promise<GoogleEvent[]> {
+  const auth = await getValidAccessToken(userId);
+  if (!auth) return [];
+  const params = new URLSearchParams({
+    timeMin: timeMinIso,
+    timeMax: timeMaxIso,
+    singleEvents: "true",
+    orderBy: "startTime",
+    maxResults: "250",
+  });
+  const res = await fetch(`${API}/calendars/${encodeURIComponent(auth.calendarId)}/events?${params}`, {
+    headers: { Authorization: `Bearer ${auth.token}` },
+  });
+  if (!res.ok) throw new Error(`Google list failed: ${await res.text()}`);
+  const j = await res.json();
+  return (j.items ?? []) as GoogleEvent[];
 }

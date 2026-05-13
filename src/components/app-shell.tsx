@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import {
-  LayoutDashboard, FolderOpen, Users2, CalendarDays, ListTodo,
-  Settings, LogOut, Sparkles, ScanLine, Cloud, Menu, X, Sun, Moon, FileBarChart
+  LayoutDashboard, FolderOpen, Users2, CalendarDays,
+  Settings, LogOut, ScanLine, Cloud, Menu, X, Sun, Moon, FileBarChart
 } from "lucide-react";
 import { NotificationsPopover } from "@/components/notifications-popover";
 import { useEffect, useState } from "react";
@@ -16,8 +16,7 @@ const NAV = [
   { to: "/app/dashboard", label: "Tableau de bord", icon: LayoutDashboard },
   { to: "/app/documents", label: "Documents", icon: FolderOpen },
   { to: "/app/meetings", label: "Réunions", icon: Users2 },
-  { to: "/app/calendar", label: "Calendrier", icon: CalendarDays },
-  { to: "/app/tasks", label: "Tâches", icon: ListTodo },
+  { to: "/app/planner", label: "Calendrier & Tâches", icon: CalendarDays },
   { to: "/app/ocr", label: "OCR & IA", icon: ScanLine },
   { to: "/app/reports", label: "Rapports IA", icon: FileBarChart },
   { to: "/app/settings", label: "Paramètres", icon: Settings },
