@@ -6,6 +6,10 @@ import { cn } from "@/lib/utils";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
+function errorMessage(error: unknown, fallback = "indisponible") {
+  return error instanceof Error ? error.message : fallback;
+}
+
 export function AIAssistant() {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
@@ -32,8 +36,8 @@ export function AIAssistant() {
       });
       if (error) throw error;
       setMessages([...next, { role: "assistant", content: data?.reply ?? "Désolé, aucune réponse." }]);
-    } catch (e: any) {
-      setMessages([...next, { role: "assistant", content: "Erreur : " + (e?.message ?? "indisponible") }]);
+    } catch (e) {
+      setMessages([...next, { role: "assistant", content: "Erreur : " + errorMessage(e) }]);
     } finally {
       setLoading(false);
     }
