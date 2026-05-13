@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { startGoogleConnect, getGoogleStatus, disconnectGoogle } from "@/lib/google.functions";
-import { GOOGLE_REDIRECT_URIS } from "@/lib/google-oauth-config";
+
 import { Button } from "@/components/ui/button";
 import { CalendarDays, Check, Link2Off } from "lucide-react";
 import { toast } from "sonner";
