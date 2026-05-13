@@ -86,11 +86,6 @@ function SettingsPage() {
                 Compte : <span className="font-medium text-foreground">{info.google_email}</span>
               </p>
             )}
-            <div className="mt-4 rounded-md border bg-background p-3 text-xs text-muted-foreground">
-              <p className="font-medium text-foreground">redirect_uri Google OAuth</p>
-              <p className="mt-2 break-all">Preview : {GOOGLE_REDIRECT_URIS.preview}</p>
-              <p className="mt-1 break-all">Production : {GOOGLE_REDIRECT_URIS.production}</p>
-            </div>
             <div className="mt-4 flex gap-2">
               {loading ? (
                 <div className="text-sm text-muted-foreground">Chargement…</div>
