@@ -12,6 +12,7 @@ export function useAuth() {
 
   useEffect(() => {
     let active = true;
+    let initialSessionChecked = false;
     let currentUserId: string | null = null;
 
     const loadRoles = async (userId: string) => {
@@ -35,12 +36,31 @@ export function useAuth() {
     };
 
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
+      if (_e === "INITIAL_SESSION" && !initialSessionChecked && !s) return;
       applySession(s);
     });
 
-    supabase.auth.getSession()
-      .then(({ data }) => applySession(data.session))
-      .catch(() => applySession(null));
+    const initializeSession = async () => {
+      try {
+        if (typeof window !== "undefined" && window.location.hash.includes("access_token")) {
+          const params = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+          const access_token = params.get("access_token");
+          const refresh_token = params.get("refresh_token");
+          if (access_token && refresh_token) {
+            await supabase.auth.setSession({ access_token, refresh_token });
+            window.history.replaceState(null, "", window.location.pathname + window.location.search);
+          }
+        }
+        const { data } = await supabase.auth.getSession();
+        initialSessionChecked = true;
+        applySession(data.session);
+      } catch {
+        initialSessionChecked = true;
+        applySession(null);
+      }
+    };
+
+    void initializeSession();
 
     return () => {
       active = false;
