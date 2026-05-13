@@ -9,6 +9,10 @@ import { supabaseAdmin } from "@/integrations/supabase/client.server";
 const PROJECT_ID = "3479a160-96fa-4b26-ae79-16c6abaa3b14";
 const STABLE_PROD = `https://project--${PROJECT_ID}.lovable.app`;
 const STABLE_DEV = `https://project--${PROJECT_ID}-dev.lovable.app`;
+export const GOOGLE_REDIRECT_URIS = {
+  production: `${STABLE_PROD}/api/public/google/callback`,
+  preview: `${STABLE_DEV}/api/public/google/callback`,
+};
 
 function originFromRequest() {
   const host = getRequestHost() ?? "";
@@ -21,12 +25,13 @@ export const startGoogleConnect = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const origin = originFromRequest();
+    const redirectUri = `${origin}/api/public/google/callback`;
     // state = userId (signed via random nonce stored)
     const state = `${context.userId}.${crypto.randomUUID()}`;
     await supabaseAdmin.from("activity_logs").insert({
-      user_id: context.userId, action: "google_oauth_start", entity: "google", metadata: { state },
+      user_id: context.userId, action: "google_oauth_start", entity: "google", metadata: { state, redirect_uri: redirectUri },
     });
-    return { url: buildAuthUrl(origin, state) };
+    return { url: buildAuthUrl(origin, state), redirectUri };
   });
 
 export const getGoogleStatus = createServerFn({ method: "GET" })
