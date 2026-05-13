@@ -187,7 +187,12 @@ function DocsPage() {
               </thead>
               <tbody>
                 {filtered.map((d) => (
-                  <tr key={d.id} className="border-t hover:bg-muted/30">
+                  <tr
+                    key={d.id}
+                    className="cursor-pointer border-t hover:bg-muted/30"
+                    onDoubleClick={() => navigate({ to: "/app/documents/editor/$id", params: { id: d.id } })}
+                    title="Double-cliquez pour ouvrir"
+                  >
                     <td className="px-3 py-2">
                       <Link to="/app/documents/editor/$id" params={{ id: d.id }} className="flex items-center gap-2 hover:underline">
                         <FileText className="h-4 w-4 text-primary" /> {d.name}
