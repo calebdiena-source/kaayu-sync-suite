@@ -5,11 +5,17 @@ import autoTable from "jspdf-autotable";
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url; a.download = filename; a.click();
+  a.href = url;
+  a.download = filename;
+  a.click();
   URL.revokeObjectURL(url);
 }
 
-export function exportRowsToCSV(filename: string, headers: string[], rows: (string | number | null | undefined)[][]) {
+export function exportRowsToCSV(
+  filename: string,
+  headers: string[],
+  rows: (string | number | null | undefined)[][],
+) {
   const escape = (v: unknown) => {
     const s = v == null ? "" : String(v);
     return /[",\n;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -18,7 +24,12 @@ export function exportRowsToCSV(filename: string, headers: string[], rows: (stri
   downloadBlob(new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" }), filename);
 }
 
-export function exportRowsToPDF(filename: string, title: string, headers: string[], rows: (string | number | null | undefined)[][]) {
+export function exportRowsToPDF(
+  filename: string,
+  title: string,
+  headers: string[],
+  rows: (string | number | null | undefined)[][],
+) {
   const doc = new jsPDF();
   doc.setFontSize(14);
   doc.text(title, 14, 16);
@@ -36,12 +47,17 @@ export function exportRowsToPDF(filename: string, title: string, headers: string
 
 export async function exportTextToDOCX(filename: string, title: string, paragraphs: string[]) {
   const doc = new Document({
-    sections: [{
-      children: [
-        new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: title, bold: true })] }),
-        ...paragraphs.map((p) => new Paragraph({ children: [new TextRun(p)] })),
-      ],
-    }],
+    sections: [
+      {
+        children: [
+          new Paragraph({
+            heading: HeadingLevel.HEADING_1,
+            children: [new TextRun({ text: title, bold: true })],
+          }),
+          ...paragraphs.map((p) => new Paragraph({ children: [new TextRun(p)] })),
+        ],
+      },
+    ],
   });
   const blob = await Packer.toBlob(doc);
   downloadBlob(blob, filename);
@@ -49,7 +65,8 @@ export async function exportTextToDOCX(filename: string, title: string, paragrap
 
 export function exportTextToPDF(filename: string, title: string, content: string) {
   const doc = new jsPDF();
-  doc.setFontSize(16); doc.text(title, 14, 18);
+  doc.setFontSize(16);
+  doc.text(title, 14, 18);
   doc.setFontSize(11);
   const lines = doc.splitTextToSize(content, 180);
   doc.text(lines, 14, 28);

@@ -22,7 +22,11 @@ export function buildRateHeaderText(rates: RateRow | null, when: Date = new Date
 /** HTML header — rendered by TipTap as a styled block at the top of the document. */
 export function buildRateHeaderHtml(rates: RateRow | null, when: Date = new Date()): string {
   const text = buildRateHeaderText(rates, when);
-  const escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>");
+  const escaped = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/\n/g, "<br>");
   return `<pre data-rate-header="1" style="background:#f4f6fb;border-left:3px solid #6366f1;padding:8px 12px;margin:0 0 12px;font-family:monospace;font-size:12px;color:#1f2937;white-space:pre-wrap;">${escaped}</pre>`;
 }
 
@@ -41,7 +45,11 @@ export async function fetchLatestRates(): Promise<RateRow | null> {
  * Strip any existing rate header (HTML <pre data-rate-header>) and prepend a fresh one.
  * Used right before saving a document so the header always reflects the latest rates + time.
  */
-export function replaceRateHeaderHtml(html: string, rates: RateRow | null, when: Date = new Date()): string {
+export function replaceRateHeaderHtml(
+  html: string,
+  rates: RateRow | null,
+  when: Date = new Date(),
+): string {
   const stripped = html.replace(/<pre[^>]*data-rate-header="1"[^>]*>[\s\S]*?<\/pre>/gi, "").trim();
   return buildRateHeaderHtml(rates, when) + stripped;
 }

@@ -1,7 +1,17 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { ScanLine, Sparkles, Loader2, FileDown, Upload, FileText, FolderOpen, Save, Check } from "lucide-react";
+import {
+  ScanLine,
+  Sparkles,
+  Loader2,
+  FileDown,
+  Upload,
+  FileText,
+  FolderOpen,
+  Save,
+  Check,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -25,16 +35,21 @@ const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingm
 
 async function buildDocxBlob(title: string, content: string): Promise<Blob> {
   const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import("docx");
-  const paragraphs = content.split(/\n+/).map(
-    (line) => new Paragraph({ children: [new TextRun(line)] })
-  );
+  const paragraphs = content
+    .split(/\n+/)
+    .map((line) => new Paragraph({ children: [new TextRun(line)] }));
   const doc = new Document({
-    sections: [{
-      children: [
-        new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: title, bold: true })] }),
-        ...paragraphs,
-      ],
-    }],
+    sections: [
+      {
+        children: [
+          new Paragraph({
+            heading: HeadingLevel.HEADING_1,
+            children: [new TextRun({ text: title, bold: true })],
+          }),
+          ...paragraphs,
+        ],
+      },
+    ],
   });
   return await Packer.toBlob(doc);
 }
@@ -55,7 +70,9 @@ function blobToB64(blob: Blob): Promise<string> {
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url; a.download = filename; a.click();
+  a.href = url;
+  a.download = filename;
+  a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
@@ -134,7 +151,10 @@ function OcrPage() {
   };
 
   const baseTitle = () =>
-    (scanFileName.replace(/\.[^.]+$/, "") || `Transcription IA ${new Date().toLocaleDateString("fr-FR")}`).slice(0, 120);
+    (
+      scanFileName.replace(/\.[^.]+$/, "") ||
+      `Transcription IA ${new Date().toLocaleDateString("fr-FR")}`
+    ).slice(0, 120);
 
   const saveAsDocument = async () => {
     if (!user || !result.trim()) return;
@@ -147,25 +167,45 @@ function OcrPage() {
 
       // Try Google Drive first if connected, otherwise Supabase Storage.
       let drv = { available: false } as { available: boolean };
-      try { drv = await checkDrive(); } catch { /* ignore */ }
+      try {
+        drv = await checkDrive();
+      } catch {
+        /* ignore */
+      }
 
       if (drv.available) {
         const dataB64 = await blobToB64(blob);
-        const r = await uploadDrive({ data: { name: filename, mimeType: DOCX_MIME, dataB64, folderId: null } });
+        const r = await uploadDrive({
+          data: { name: filename, mimeType: DOCX_MIME, dataB64, folderId: null },
+        });
         setSavedDocId(r.id);
         toast.success("Enregistré dans Documents (Google Drive)");
       } else {
         const path = `${user.id}/${Date.now()}-${filename}`;
-        const { error: upErr } = await supabase.storage.from("documents").upload(path, blob, { contentType: DOCX_MIME });
+        const { error: upErr } = await supabase.storage
+          .from("documents")
+          .upload(path, blob, { contentType: DOCX_MIME });
         if (upErr) throw upErr;
-        const { data: docRow, error: dbErr } = await supabase.from("documents").insert({
-          user_id: user.id, name: filename, storage_path: path,
-          mime_type: DOCX_MIME, size_bytes: size, folder_id: null,
-        }).select("id").single();
+        const { data: docRow, error: dbErr } = await supabase
+          .from("documents")
+          .insert({
+            user_id: user.id,
+            name: filename,
+            storage_path: path,
+            mime_type: DOCX_MIME,
+            size_bytes: size,
+            folder_id: null,
+          })
+          .select("id")
+          .single();
         if (dbErr) throw dbErr;
         await supabase.from("document_versions").insert({
-          document_id: docRow.id, version_number: 1, storage_path: path,
-          size_bytes: size, mime_type: DOCX_MIME, created_by: user.id,
+          document_id: docRow.id,
+          version_number: 1,
+          storage_path: path,
+          size_bytes: size,
+          mime_type: DOCX_MIME,
+          created_by: user.id,
           comment: "Transcription IA",
         });
         setSavedDocId(docRow.id);
@@ -194,7 +234,8 @@ function OcrPage() {
     try {
       const { default: jsPDF } = await import("jspdf");
       const doc = new jsPDF();
-      doc.setFontSize(16); doc.text(baseTitle(), 14, 18);
+      doc.setFontSize(16);
+      doc.text(baseTitle(), 14, 18);
       doc.setFontSize(11);
       const lines = doc.splitTextToSize(result, 180);
       doc.text(lines, 14, 28);
@@ -209,7 +250,10 @@ function OcrPage() {
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-semibold tracking-tight">OCR & Outils IA</h2>
-        <p className="text-sm text-muted-foreground">Téléversez un document scanné ou collez du texte — l'IA le transcrit, le corrige, le traduit ou le résume.</p>
+        <p className="text-sm text-muted-foreground">
+          Téléversez un document scanné ou collez du texte — l'IA le transcrit, le corrige, le
+          traduit ou le résume.
+        </p>
       </div>
 
       <div className="rounded-xl border bg-card p-4">
@@ -219,7 +263,11 @@ function OcrPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button size="sm" onClick={() => fileRef.current?.click()} disabled={scanning}>
-            {scanning ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Upload className="mr-1.5 h-3.5 w-3.5" />}
+            {scanning ? (
+              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Upload className="mr-1.5 h-3.5 w-3.5" />
+            )}
             {scanning ? "Transcription IA…" : "Choisir un fichier"}
           </Button>
           <input
@@ -229,57 +277,115 @@ function OcrPage() {
             className="hidden"
             onChange={(e) => handleScan(e.target.files)}
           />
-          {scanFileName && <span className="text-xs text-muted-foreground"><FileText className="mr-1 inline h-3.5 w-3.5" />{scanFileName}</span>}
+          {scanFileName && (
+            <span className="text-xs text-muted-foreground">
+              <FileText className="mr-1 inline h-3.5 w-3.5" />
+              {scanFileName}
+            </span>
+          )}
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">L'IA Gemini extrait fidèlement le texte (manuscrit ou imprimé). Vous pouvez ensuite l'enregistrer dans Documents ou l'exporter.</p>
+        <p className="mt-2 text-xs text-muted-foreground">
+          L'IA Gemini extrait fidèlement le texte (manuscrit ou imprimé). Vous pouvez ensuite
+          l'enregistrer dans Documents ou l'exporter.
+        </p>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-xl border bg-card p-4">
-          <div className="mb-2 flex items-center gap-2 text-sm font-semibold"><ScanLine className="h-4 w-4 text-primary" /> Texte source</div>
-          <textarea value={text} onChange={(e) => setText(e.target.value)} rows={14} placeholder="Collez ici du texte, ou téléversez un document scanné ci-dessus…" className="w-full rounded-md border bg-background p-3 text-sm" />
+          <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+            <ScanLine className="h-4 w-4 text-primary" /> Texte source
+          </div>
+          <textarea
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={14}
+            placeholder="Collez ici du texte, ou téléversez un document scanné ci-dessus…"
+            className="w-full rounded-md border bg-background p-3 text-sm"
+          />
           <div className="mt-3 flex flex-wrap gap-2">
-            <Button size="sm" onClick={() => process("ocr")} disabled={loading || !text}><Sparkles className="mr-1.5 h-3.5 w-3.5" />Corriger / structurer</Button>
-            <Button size="sm" variant="outline" onClick={() => process("rewrite")} disabled={loading || !text}>Réécrire pro</Button>
-            <Button size="sm" variant="outline" onClick={() => process("summary")} disabled={loading || !text}>Résumer</Button>
-            <Button size="sm" variant="outline" onClick={() => process("translate")} disabled={loading || !text}>Traduire (EN)</Button>
+            <Button size="sm" onClick={() => process("ocr")} disabled={loading || !text}>
+              <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+              Corriger / structurer
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => process("rewrite")}
+              disabled={loading || !text}
+            >
+              Réécrire pro
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => process("summary")}
+              disabled={loading || !text}
+            >
+              Résumer
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => process("translate")}
+              disabled={loading || !text}
+            >
+              Traduire (EN)
+            </Button>
           </div>
         </div>
 
         <div className="rounded-xl border bg-card p-4">
-          <div className="mb-2 flex items-center gap-2 text-sm font-semibold"><Sparkles className="h-4 w-4 text-primary" /> Résultat IA</div>
+          <div className="mb-2 flex items-center gap-2 text-sm font-semibold">
+            <Sparkles className="h-4 w-4 text-primary" /> Résultat IA
+          </div>
           {loading || scanning ? (
-            <div className="flex min-h-[20rem] items-center gap-2 rounded-md border bg-background p-3 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Traitement IA…</div>
+            <div className="flex min-h-[20rem] items-center gap-2 rounded-md border bg-background p-3 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" /> Traitement IA…
+            </div>
           ) : result ? (
             <textarea
               value={result}
-              onChange={(e) => { setResult(e.target.value); setSavedDocId(null); }}
+              onChange={(e) => {
+                setResult(e.target.value);
+                setSavedDocId(null);
+              }}
               rows={14}
               className="w-full rounded-md border bg-background p-3 text-sm"
             />
           ) : (
-            <div className="min-h-[20rem] rounded-md border bg-background p-3 text-sm text-muted-foreground">Le résultat apparaîtra ici.</div>
+            <div className="min-h-[20rem] rounded-md border bg-background p-3 text-sm text-muted-foreground">
+              Le résultat apparaîtra ici.
+            </div>
           )}
 
           {result && (
             <div className="mt-3 space-y-2">
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" onClick={saveAsDocument} disabled={savingDoc}>
-                  {savingDoc ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-1.5 h-3.5 w-3.5" />}
+                  {savingDoc ? (
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Save className="mr-1.5 h-3.5 w-3.5" />
+                  )}
                   Enregistrer dans Documents (.docx)
                 </Button>
                 <Button size="sm" variant="outline" onClick={exportPdf}>
-                  <FileDown className="mr-1.5 h-3.5 w-3.5" />Exporter PDF
+                  <FileDown className="mr-1.5 h-3.5 w-3.5" />
+                  Exporter PDF
                 </Button>
                 <Button size="sm" variant="outline" onClick={exportDocx}>
-                  <FileDown className="mr-1.5 h-3.5 w-3.5" />Exporter DOCX
+                  <FileDown className="mr-1.5 h-3.5 w-3.5" />
+                  Exporter DOCX
                 </Button>
               </div>
               {savedDocId && (
                 <div className="flex items-center gap-2 text-xs text-emerald-600">
                   <Check className="h-3.5 w-3.5" /> Enregistré dans Documents.
                   <Button asChild size="sm" variant="ghost" className="h-6 px-2">
-                    <Link to="/app/documents"><FolderOpen className="mr-1 h-3 w-3" />Ouvrir Documents</Link>
+                    <Link to="/app/documents">
+                      <FolderOpen className="mr-1 h-3 w-3" />
+                      Ouvrir Documents
+                    </Link>
                   </Button>
                 </div>
               )}

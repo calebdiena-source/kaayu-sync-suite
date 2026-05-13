@@ -13,8 +13,7 @@ import {
   replaceRateHeaderHtml,
 } from "@/lib/rate-header";
 
-const DOCX_MIME =
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
 type SearchParams = { name?: string };
 
@@ -51,13 +50,28 @@ async function htmlToDocxBlob(title: string, html: string): Promise<Blob> {
     }
     switch (tag) {
       case "h1":
-        paragraphs.push(new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text, bold: true })] }));
+        paragraphs.push(
+          new Paragraph({
+            heading: HeadingLevel.HEADING_1,
+            children: [new TextRun({ text, bold: true })],
+          }),
+        );
         break;
       case "h2":
-        paragraphs.push(new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text, bold: true })] }));
+        paragraphs.push(
+          new Paragraph({
+            heading: HeadingLevel.HEADING_2,
+            children: [new TextRun({ text, bold: true })],
+          }),
+        );
         break;
       case "h3":
-        paragraphs.push(new Paragraph({ heading: HeadingLevel.HEADING_3, children: [new TextRun({ text, bold: true })] }));
+        paragraphs.push(
+          new Paragraph({
+            heading: HeadingLevel.HEADING_3,
+            children: [new TextRun({ text, bold: true })],
+          }),
+        );
         break;
       case "li":
         paragraphs.push(new Paragraph({ text, bullet: { level: 0 } }));
@@ -125,12 +139,9 @@ function DocumentEditor() {
         setDocName(d.name);
         setStoragePath(d.storage_path);
         setCanEdit(d.user_id === user.id);
-        const { data: blob } = await supabase.storage
-          .from("documents")
-          .download(d.storage_path);
+        const { data: blob } = await supabase.storage.from("documents").download(d.storage_path);
         if (blob) {
-          const isDocx =
-            d.mime_type === DOCX_MIME || /\.docx$/i.test(d.name);
+          const isDocx = d.mime_type === DOCX_MIME || /\.docx$/i.test(d.name);
           if (isDocx) {
             try {
               const arrayBuffer = await blob.arrayBuffer();

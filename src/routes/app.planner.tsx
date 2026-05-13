@@ -13,18 +13,37 @@ import {
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { CalendarDays, Plus, RefreshCw, Trash2 } from "lucide-react";
 import {
-  startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, format, isSameMonth, isSameDay, addMonths, subMonths,
+  startOfMonth,
+  endOfMonth,
+  startOfWeek,
+  endOfWeek,
+  addDays,
+  format,
+  isSameMonth,
+  isSameDay,
+  addMonths,
+  subMonths,
 } from "date-fns";
 import { fr } from "date-fns/locale";
 import {
-  DndContext, useDraggable, useDroppable, type DragEndEvent, PointerSensor, useSensor, useSensors,
+  DndContext,
+  useDraggable,
+  useDroppable,
+  type DragEndEvent,
+  PointerSensor,
+  useSensor,
+  useSensors,
 } from "@dnd-kit/core";
 import { cn } from "@/lib/utils";
 
@@ -90,7 +109,11 @@ function PlannerPage() {
     if (!user) return;
     const [{ data: ev }, { data: tk }, { data: pr }] = await Promise.all([
       supabase.from("calendar_events").select("*").eq("user_id", user.id).order("start_at"),
-      supabase.from("tasks").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
+      supabase
+        .from("tasks")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false }),
       supabase.from("profiles").select("id, full_name"),
     ]);
     setEvents((ev ?? []) as Ev[]);
@@ -114,8 +137,11 @@ function PlannerPage() {
     }
   }, [user, month, pullFn, load]);
 
-  useEffect(() => { void load(); }, [load]);
-  useEffect(() => { void pull(); /* on mount + month change */ // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    void load();
+  }, [load]);
+  useEffect(() => {
+    void pull(); /* on mount + month change */ // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   // Calendar grid
@@ -124,7 +150,10 @@ function PlannerPage() {
     const end = endOfWeek(endOfMonth(month), { weekStartsOn: 1 });
     const out: Date[] = [];
     let d = start;
-    while (d <= end) { out.push(d); d = addDays(d, 1); }
+    while (d <= end) {
+      out.push(d);
+      d = addDays(d, 1);
+    }
     return out;
   }, [month]);
 
@@ -144,20 +173,36 @@ function PlannerPage() {
 
   const removeEvent = async (e: Ev) => {
     await supabase.from("calendar_events").delete().eq("id", e.id);
-    if (e.google_event_id) { try { await delEvFn({ data: { googleEventId: e.google_event_id } }); } catch { /* ignore */ } }
+    if (e.google_event_id) {
+      try {
+        await delEvFn({ data: { googleEventId: e.google_event_id } });
+      } catch {
+        /* ignore */
+      }
+    }
     void load();
   };
 
   const removeTask = async (t: Task) => {
     await supabase.from("tasks").delete().eq("id", t.id);
-    if (t.google_event_id) { try { await delTaskFn({ data: { googleEventId: t.google_event_id } }); } catch { /* ignore */ } }
+    if (t.google_event_id) {
+      try {
+        await delTaskFn({ data: { googleEventId: t.google_event_id } });
+      } catch {
+        /* ignore */
+      }
+    }
     void load();
   };
 
   const updateTaskStatus = async (id: string, status: Task["status"]) => {
     setTasks((prev) => prev.map((t) => (t.id === id ? { ...t, status } : t)));
     await supabase.from("tasks").update({ status }).eq("id", id);
-    try { await syncTask({ data: { taskId: id } }); } catch { /* ignore */ }
+    try {
+      await syncTask({ data: { taskId: id } });
+    } catch {
+      /* ignore */
+    }
   };
 
   return (
@@ -165,18 +210,36 @@ function PlannerPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold tracking-tight">Calendrier &amp; Tâches</h2>
-          <p className="text-sm text-muted-foreground">{events.length} événement(s) · {tasks.filter((t) => t.status !== "done").length} tâche(s) en cours</p>
+          <p className="text-sm text-muted-foreground">
+            {events.length} événement(s) · {tasks.filter((t) => t.status !== "done").length}{" "}
+            tâche(s) en cours
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => void pull()} disabled={pulling}>
             <RefreshCw className={cn("mr-1 h-4 w-4", pulling && "animate-spin")} />
             Synchroniser Google
           </Button>
-          <Button size="sm" variant="outline" onClick={() => { setEditingEvent(null); setEvOpen(true); }}>
-            <Plus className="mr-1 h-4 w-4" />Nouvel événement
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setEditingEvent(null);
+              setEvOpen(true);
+            }}
+          >
+            <Plus className="mr-1 h-4 w-4" />
+            Nouvel événement
           </Button>
-          <Button size="sm" onClick={() => { setEditingTask(null); setTaskOpen(true); }}>
-            <Plus className="mr-1 h-4 w-4" />Nouvelle tâche
+          <Button
+            size="sm"
+            onClick={() => {
+              setEditingTask(null);
+              setTaskOpen(true);
+            }}
+          >
+            <Plus className="mr-1 h-4 w-4" />
+            Nouvelle tâche
           </Button>
         </div>
       </div>
@@ -189,16 +252,26 @@ function PlannerPage() {
 
         <TabsContent value="calendar" className="space-y-3">
           <div className="flex items-center justify-between">
-            <div className="text-base font-medium capitalize">{format(month, "MMMM yyyy", { locale: fr })}</div>
+            <div className="text-base font-medium capitalize">
+              {format(month, "MMMM yyyy", { locale: fr })}
+            </div>
             <div className="flex gap-1">
-              <Button size="sm" variant="outline" onClick={() => setMonth(subMonths(month, 1))}>‹</Button>
-              <Button size="sm" variant="outline" onClick={() => setMonth(new Date())}>Aujourd&apos;hui</Button>
-              <Button size="sm" variant="outline" onClick={() => setMonth(addMonths(month, 1))}>›</Button>
+              <Button size="sm" variant="outline" onClick={() => setMonth(subMonths(month, 1))}>
+                ‹
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setMonth(new Date())}>
+                Aujourd&apos;hui
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setMonth(addMonths(month, 1))}>
+                ›
+              </Button>
             </div>
           </div>
           <div className="grid grid-cols-7 gap-px overflow-hidden rounded-xl border bg-border text-xs">
             {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map((d) => (
-              <div key={d} className="bg-card p-2 text-center font-medium">{d}</div>
+              <div key={d} className="bg-card p-2 text-center font-medium">
+                {d}
+              </div>
             ))}
             {days.map((d) => {
               const k = format(d, "yyyy-MM-dd");
@@ -206,22 +279,52 @@ function PlannerPage() {
               const inMonth = isSameMonth(d, month);
               const today = isSameDay(d, new Date());
               return (
-                <div key={k} className={cn("min-h-[92px] bg-card p-1.5", !inMonth && "bg-muted/40 text-muted-foreground")}>
-                  <div className={cn("mb-1 inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px]", today && "bg-primary text-primary-foreground font-semibold")}>
+                <div
+                  key={k}
+                  className={cn(
+                    "min-h-[92px] bg-card p-1.5",
+                    !inMonth && "bg-muted/40 text-muted-foreground",
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "mb-1 inline-flex h-6 w-6 items-center justify-center rounded-full text-[11px]",
+                      today && "bg-primary text-primary-foreground font-semibold",
+                    )}
+                  >
                     {format(d, "d")}
                   </div>
                   <div className="space-y-0.5">
                     {cell?.events.slice(0, 3).map((e) => (
-                      <button key={e.id} onClick={() => { setEditingEvent(e); setEvOpen(true); }} className="block w-full truncate rounded px-1 py-0.5 text-left text-[11px] text-white" style={{ background: e.color ?? "#039BE5" }}>
+                      <button
+                        key={e.id}
+                        onClick={() => {
+                          setEditingEvent(e);
+                          setEvOpen(true);
+                        }}
+                        className="block w-full truncate rounded px-1 py-0.5 text-left text-[11px] text-white"
+                        style={{ background: e.color ?? "#039BE5" }}
+                      >
                         {format(new Date(e.start_at), "HH:mm")} {e.title}
                       </button>
                     ))}
                     {cell?.tasks.slice(0, 3).map((t) => (
-                      <button key={t.id} onClick={() => { setEditingTask(t); setTaskOpen(true); }} className={cn("block w-full truncate rounded border px-1 py-0.5 text-left text-[11px]", PRIORITY_COLORS[t.priority], t.status === "done" && "line-through opacity-60")}>
+                      <button
+                        key={t.id}
+                        onClick={() => {
+                          setEditingTask(t);
+                          setTaskOpen(true);
+                        }}
+                        className={cn(
+                          "block w-full truncate rounded border px-1 py-0.5 text-left text-[11px]",
+                          PRIORITY_COLORS[t.priority],
+                          t.status === "done" && "line-through opacity-60",
+                        )}
+                      >
                         ✓ {t.title}
                       </button>
                     ))}
-                    {((cell?.events.length ?? 0) + (cell?.tasks.length ?? 0)) > 6 && (
+                    {(cell?.events.length ?? 0) + (cell?.tasks.length ?? 0) > 6 && (
                       <div className="px-1 text-[10px] text-muted-foreground">+ autres…</div>
                     )}
                   </div>
@@ -232,22 +335,44 @@ function PlannerPage() {
 
           <div className="space-y-1.5">
             <h3 className="text-sm font-medium text-muted-foreground">Événements à venir</h3>
-            {events.filter((e) => new Date(e.start_at) >= new Date()).slice(0, 5).map((e) => (
-              <div key={e.id} className="flex items-center gap-3 rounded-lg border bg-card p-2.5">
-                <div className="h-8 w-1 rounded" style={{ background: e.color ?? "#039BE5" }} />
-                <div className="flex-1">
-                  <div className="text-sm font-medium">{e.title}</div>
-                  <div className="text-xs text-muted-foreground">{new Date(e.start_at).toLocaleString("fr-FR")}{e.location && ` · ${e.location}`}</div>
+            {events
+              .filter((e) => new Date(e.start_at) >= new Date())
+              .slice(0, 5)
+              .map((e) => (
+                <div key={e.id} className="flex items-center gap-3 rounded-lg border bg-card p-2.5">
+                  <div className="h-8 w-1 rounded" style={{ background: e.color ?? "#039BE5" }} />
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">{e.title}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {new Date(e.start_at).toLocaleString("fr-FR")}
+                      {e.location && ` · ${e.location}`}
+                    </div>
+                  </div>
+                  <Button size="icon" variant="ghost" onClick={() => void removeEvent(e)}>
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
                 </div>
-                <Button size="icon" variant="ghost" onClick={() => void removeEvent(e)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+              ))}
+            {events.length === 0 && (
+              <div className="rounded-xl border bg-card p-8 text-center text-sm text-muted-foreground">
+                <CalendarDays className="mx-auto mb-2 h-6 w-6" />
+                Aucun événement
               </div>
-            ))}
-            {events.length === 0 && <div className="rounded-xl border bg-card p-8 text-center text-sm text-muted-foreground"><CalendarDays className="mx-auto mb-2 h-6 w-6" />Aucun événement</div>}
+            )}
           </div>
         </TabsContent>
 
         <TabsContent value="kanban">
-          <KanbanBoard tasks={tasks} profiles={profiles} onMove={updateTaskStatus} onEdit={(t) => { setEditingTask(t); setTaskOpen(true); }} onDelete={removeTask} />
+          <KanbanBoard
+            tasks={tasks}
+            profiles={profiles}
+            onMove={updateTaskStatus}
+            onEdit={(t) => {
+              setEditingTask(t);
+              setTaskOpen(true);
+            }}
+            onDelete={removeTask}
+          />
         </TabsContent>
       </Tabs>
 
@@ -260,11 +385,19 @@ function PlannerPage() {
           await load();
           setEvOpen(false);
           if (!deleted && id) {
-            try { await syncEv({ data: { eventId: id } }); toast.success("Synchronisé avec Google Calendar"); }
-            catch (e) {
+            try {
+              await syncEv({ data: { eventId: id } });
+              toast.success("Synchronisé avec Google Calendar");
+            } catch (e) {
               const msg = e instanceof Error ? e.message : String(e);
-              if (msg.includes("insufficient") || msg.includes("PERMISSION_DENIED") || msg.includes("403")) {
-                toast.error("Autorisation Google Calendar manquante. Allez dans Paramètres → déconnectez puis reconnectez Google en cochant l'accès au calendrier.");
+              if (
+                msg.includes("insufficient") ||
+                msg.includes("PERMISSION_DENIED") ||
+                msg.includes("403")
+              ) {
+                toast.error(
+                  "Autorisation Google Calendar manquante. Allez dans Paramètres → déconnectez puis reconnectez Google en cochant l'accès au calendrier.",
+                );
               } else {
                 toast.error("Échec de la synchronisation Google : " + msg);
               }
@@ -283,11 +416,19 @@ function PlannerPage() {
           await load();
           setTaskOpen(false);
           if (id) {
-            try { await syncTask({ data: { taskId: id } }); toast.success("Synchronisé avec Google Calendar"); }
-            catch (e) {
+            try {
+              await syncTask({ data: { taskId: id } });
+              toast.success("Synchronisé avec Google Calendar");
+            } catch (e) {
               const msg = e instanceof Error ? e.message : String(e);
-              if (msg.includes("insufficient") || msg.includes("PERMISSION_DENIED") || msg.includes("403")) {
-                toast.error("Autorisation Google Calendar manquante. Allez dans Paramètres → déconnectez puis reconnectez Google.");
+              if (
+                msg.includes("insufficient") ||
+                msg.includes("PERMISSION_DENIED") ||
+                msg.includes("403")
+              ) {
+                toast.error(
+                  "Autorisation Google Calendar manquante. Allez dans Paramètres → déconnectez puis reconnectez Google.",
+                );
               } else {
                 toast.error("Échec sync : " + msg);
               }
@@ -307,7 +448,13 @@ const COLUMNS: { id: Task["status"]; label: string }[] = [
   { id: "done", label: "Terminé" },
 ];
 
-function KanbanBoard({ tasks, profiles, onMove, onEdit, onDelete }: {
+function KanbanBoard({
+  tasks,
+  profiles,
+  onMove,
+  onEdit,
+  onDelete,
+}: {
   tasks: Task[];
   profiles: Profile[];
   onMove: (id: string, status: Task["status"]) => void;
@@ -327,22 +474,42 @@ function KanbanBoard({ tasks, profiles, onMove, onEdit, onDelete }: {
     <DndContext sensors={sensors} onDragEnd={onDragEnd}>
       <div className="grid gap-3 md:grid-cols-3">
         {COLUMNS.map((col) => (
-          <Column key={col.id} id={col.id} label={col.label}
+          <Column
+            key={col.id}
+            id={col.id}
+            label={col.label}
             items={tasks.filter((t) => (t.status ?? "todo") === col.id)}
-            profiles={profiles} onEdit={onEdit} onDelete={onDelete} />
+            profiles={profiles}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
         ))}
       </div>
     </DndContext>
   );
 }
 
-function Column({ id, label, items, profiles, onEdit, onDelete }: {
-  id: Task["status"]; label: string; items: Task[]; profiles: Profile[];
-  onEdit: (t: Task) => void; onDelete: (t: Task) => void;
+function Column({
+  id,
+  label,
+  items,
+  profiles,
+  onEdit,
+  onDelete,
+}: {
+  id: Task["status"];
+  label: string;
+  items: Task[];
+  profiles: Profile[];
+  onEdit: (t: Task) => void;
+  onDelete: (t: Task) => void;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id });
   return (
-    <div ref={setNodeRef} className={cn("rounded-xl border bg-card p-3", isOver && "ring-2 ring-primary")}>
+    <div
+      ref={setNodeRef}
+      className={cn("rounded-xl border bg-card p-3", isOver && "ring-2 ring-primary")}
+    >
       <div className="mb-2 flex items-center justify-between">
         <div className="text-sm font-semibold">{label}</div>
         <span className="rounded-full bg-muted px-2 py-0.5 text-xs">{items.length}</span>
@@ -351,33 +518,76 @@ function Column({ id, label, items, profiles, onEdit, onDelete }: {
         {items.map((t) => (
           <KanbanCard key={t.id} task={t} profiles={profiles} onEdit={onEdit} onDelete={onDelete} />
         ))}
-        {items.length === 0 && <div className="rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">Aucune tâche</div>}
+        {items.length === 0 && (
+          <div className="rounded-md border border-dashed p-4 text-center text-xs text-muted-foreground">
+            Aucune tâche
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function KanbanCard({ task, profiles, onEdit, onDelete }: { task: Task; profiles: Profile[]; onEdit: (t: Task) => void; onDelete: (t: Task) => void }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: task.id });
-  const style = transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined;
+function KanbanCard({
+  task,
+  profiles,
+  onEdit,
+  onDelete,
+}: {
+  task: Task;
+  profiles: Profile[];
+  onEdit: (t: Task) => void;
+  onDelete: (t: Task) => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: task.id,
+  });
+  const style = transform
+    ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` }
+    : undefined;
   const assignee = profiles.find((p) => p.id === task.assigned_to)?.full_name;
   return (
-    <div ref={setNodeRef} style={style} {...attributes} className={cn("rounded-lg border bg-background p-2.5", isDragging && "opacity-50")}>
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      className={cn("rounded-lg border bg-background p-2.5", isDragging && "opacity-50")}
+    >
       <div className="flex items-start gap-2">
-        <button {...listeners} className="mt-0.5 cursor-grab text-xs text-muted-foreground active:cursor-grabbing" title="Glisser">⋮⋮</button>
+        <button
+          {...listeners}
+          className="mt-0.5 cursor-grab text-xs text-muted-foreground active:cursor-grabbing"
+          title="Glisser"
+        >
+          ⋮⋮
+        </button>
         <button onClick={() => onEdit(task)} className="flex-1 text-left">
           <div className="text-sm font-medium">{task.title}</div>
           <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
-            <span className={cn("rounded-full border px-1.5 py-0.5", PRIORITY_COLORS[task.priority])}>
+            <span
+              className={cn("rounded-full border px-1.5 py-0.5", PRIORITY_COLORS[task.priority])}
+            >
               {task.priority === "high" ? "Haute" : task.priority === "low" ? "Basse" : "Moyenne"}
             </span>
             {task.due_date && (
-              <span className="text-muted-foreground">{new Date(task.due_date).toLocaleDateString("fr-FR")}{task.due_time ? ` ${task.due_time}` : ""}</span>
+              <span className="text-muted-foreground">
+                {new Date(task.due_date).toLocaleDateString("fr-FR")}
+                {task.due_time ? ` ${task.due_time}` : ""}
+              </span>
             )}
-            {assignee && <span className="rounded-full bg-muted px-1.5 py-0.5 text-muted-foreground">{assignee}</span>}
+            {assignee && (
+              <span className="rounded-full bg-muted px-1.5 py-0.5 text-muted-foreground">
+                {assignee}
+              </span>
+            )}
           </div>
         </button>
-        <button onClick={() => onDelete(task)} className="text-muted-foreground hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /></button>
+        <button
+          onClick={() => onDelete(task)}
+          className="text-muted-foreground hover:text-destructive"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
       </div>
     </div>
   );
@@ -385,8 +595,17 @@ function KanbanCard({ task, profiles, onEdit, onDelete }: { task: Task; profiles
 
 /* -------------------- Event dialog -------------------- */
 
-function EventDialog({ open, onOpenChange, event, userId, onSaved }: {
-  open: boolean; onOpenChange: (o: boolean) => void; event: Ev | null; userId: string | undefined;
+function EventDialog({
+  open,
+  onOpenChange,
+  event,
+  userId,
+  onSaved,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  event: Ev | null;
+  userId: string | undefined;
   onSaved: (id: string | null, deleted?: boolean) => void;
 }) {
   const [title, setTitle] = useState("");
@@ -409,30 +628,67 @@ function EventDialog({ open, onOpenChange, event, userId, onSaved }: {
       setColor(event.color ?? EVENT_COLORS[0]);
       setReminder(event.reminder_minutes ?? 30);
     } else {
-      setTitle(""); setDate(format(new Date(), "yyyy-MM-dd")); setStart("09:00"); setEnd("10:00");
-      setDescription(""); setColor(EVENT_COLORS[0]); setReminder(30);
+      setTitle("");
+      setDate(format(new Date(), "yyyy-MM-dd"));
+      setStart("09:00");
+      setEnd("10:00");
+      setDescription("");
+      setColor(EVENT_COLORS[0]);
+      setReminder(30);
     }
   }, [open, event]);
 
   const save = async () => {
     if (!userId) return;
-    if (!title.trim()) { toast.error("Veuillez saisir un titre"); return; }
-    if (!date) { toast.error("Veuillez choisir une date"); return; }
-    if (!start) { toast.error("Veuillez choisir une heure de début"); return; }
+    if (!title.trim()) {
+      toast.error("Veuillez saisir un titre");
+      return;
+    }
+    if (!date) {
+      toast.error("Veuillez choisir une date");
+      return;
+    }
+    if (!start) {
+      toast.error("Veuillez choisir une heure de début");
+      return;
+    }
     const startDate = new Date(`${date}T${start}:00`);
-    if (isNaN(startDate.getTime())) { toast.error("Date ou heure invalide"); return; }
+    if (isNaN(startDate.getTime())) {
+      toast.error("Date ou heure invalide");
+      return;
+    }
     // Auto-fill end = start + 1h if not provided
-    const endDate = end ? new Date(`${date}T${end}:00`) : new Date(startDate.getTime() + 60 * 60 * 1000);
+    const endDate = end
+      ? new Date(`${date}T${end}:00`)
+      : new Date(startDate.getTime() + 60 * 60 * 1000);
     const startIso = startDate.toISOString();
     const endIso = endDate.toISOString();
-    const payload = { user_id: userId, title: title.trim(), description: description || null, start_at: startIso, end_at: endIso, color, reminder_minutes: reminder };
+    const payload = {
+      user_id: userId,
+      title: title.trim(),
+      description: description || null,
+      start_at: startIso,
+      end_at: endIso,
+      color,
+      reminder_minutes: reminder,
+    };
     if (event) {
       const { error } = await supabase.from("calendar_events").update(payload).eq("id", event.id);
-      if (error) { toast.error(error.message); return; }
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
       onSaved(event.id);
     } else {
-      const { data, error } = await supabase.from("calendar_events").insert(payload).select().single();
-      if (error) { toast.error(error.message); return; }
+      const { data, error } = await supabase
+        .from("calendar_events")
+        .insert(payload)
+        .select()
+        .single();
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
       onSaved(data.id);
     }
   };
@@ -440,11 +696,17 @@ function EventDialog({ open, onOpenChange, event, userId, onSaved }: {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
-        <DialogHeader><DialogTitle>{event ? "Modifier l'événement" : "Nouvel événement"}</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>{event ? "Modifier l'événement" : "Nouvel événement"}</DialogTitle>
+        </DialogHeader>
         <div className="space-y-3">
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Titre</label>
-            <Input placeholder="Ex: Réunion équipe" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <Input
+              placeholder="Ex: Réunion équipe"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
           </div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
             <div className="space-y-1">
@@ -456,20 +718,39 @@ function EventDialog({ open, onOpenChange, event, userId, onSaved }: {
               <Input type="time" value={start} onChange={(e) => setStart(e.target.value)} />
             </div>
             <div className="space-y-1">
-              <label className="text-xs text-muted-foreground">Fin <span className="opacity-60">(auto)</span></label>
+              <label className="text-xs text-muted-foreground">
+                Fin <span className="opacity-60">(auto)</span>
+              </label>
               <Input type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
             </div>
           </div>
-          <Textarea placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} />
+          <Textarea
+            placeholder="Description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">Couleur</span>
             {EVENT_COLORS.map((c) => (
-              <button key={c} type="button" onClick={() => setColor(c)} className={cn("h-6 w-6 rounded-full border-2", color === c ? "border-foreground" : "border-transparent")} style={{ background: c }} />
+              <button
+                key={c}
+                type="button"
+                onClick={() => setColor(c)}
+                className={cn(
+                  "h-6 w-6 rounded-full border-2",
+                  color === c ? "border-foreground" : "border-transparent",
+                )}
+                style={{ background: c }}
+              />
             ))}
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">Rappel</span>
-            <select value={reminder} onChange={(e) => setReminder(Number(e.target.value))} className="rounded-md border bg-background px-2 py-1 text-sm">
+            <select
+              value={reminder}
+              onChange={(e) => setReminder(Number(e.target.value))}
+              className="rounded-md border bg-background px-2 py-1 text-sm"
+            >
               <option value={10}>10 minutes avant</option>
               <option value={30}>30 minutes avant</option>
               <option value={60}>1 heure avant</option>
@@ -479,10 +760,15 @@ function EventDialog({ open, onOpenChange, event, userId, onSaved }: {
         </div>
         <DialogFooter>
           {event && (
-            <Button variant="destructive" onClick={async () => {
-              await supabase.from("calendar_events").delete().eq("id", event.id);
-              onSaved(null, true);
-            }}>Supprimer</Button>
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                await supabase.from("calendar_events").delete().eq("id", event.id);
+                onSaved(null, true);
+              }}
+            >
+              Supprimer
+            </Button>
           )}
           <Button onClick={save}>Enregistrer</Button>
         </DialogFooter>
@@ -493,8 +779,19 @@ function EventDialog({ open, onOpenChange, event, userId, onSaved }: {
 
 /* -------------------- Task dialog -------------------- */
 
-function TaskDialog({ open, onOpenChange, task, profiles, userId, onSaved }: {
-  open: boolean; onOpenChange: (o: boolean) => void; task: Task | null; profiles: Profile[]; userId: string | undefined;
+function TaskDialog({
+  open,
+  onOpenChange,
+  task,
+  profiles,
+  userId,
+  onSaved,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  task: Task | null;
+  profiles: Profile[];
+  userId: string | undefined;
   onSaved: (id: string | null) => void;
 }) {
   const [title, setTitle] = useState("");
@@ -508,29 +805,52 @@ function TaskDialog({ open, onOpenChange, task, profiles, userId, onSaved }: {
   useEffect(() => {
     if (!open) return;
     if (task) {
-      setTitle(task.title); setDescription(task.description ?? "");
-      setDueDate(task.due_date ?? ""); setDueTime(task.due_time ?? "");
-      setPriority(task.priority); setStatus(task.status ?? "todo"); setAssignedTo(task.assigned_to ?? "");
+      setTitle(task.title);
+      setDescription(task.description ?? "");
+      setDueDate(task.due_date ?? "");
+      setDueTime(task.due_time ?? "");
+      setPriority(task.priority);
+      setStatus(task.status ?? "todo");
+      setAssignedTo(task.assigned_to ?? "");
     } else {
-      setTitle(""); setDescription(""); setDueDate(format(new Date(), "yyyy-MM-dd"));
-      setDueTime("09:00"); setPriority("medium"); setStatus("todo"); setAssignedTo("");
+      setTitle("");
+      setDescription("");
+      setDueDate(format(new Date(), "yyyy-MM-dd"));
+      setDueTime("09:00");
+      setPriority("medium");
+      setStatus("todo");
+      setAssignedTo("");
     }
   }, [open, task]);
 
   const save = async () => {
-    if (!userId || !title) { toast.error("Titre requis"); return; }
+    if (!userId || !title) {
+      toast.error("Titre requis");
+      return;
+    }
     const payload = {
-      user_id: userId, title, description: description || null,
-      due_date: dueDate || null, due_time: dueTime || null,
-      priority, status, assigned_to: assignedTo || null,
+      user_id: userId,
+      title,
+      description: description || null,
+      due_date: dueDate || null,
+      due_time: dueTime || null,
+      priority,
+      status,
+      assigned_to: assignedTo || null,
     };
     if (task) {
       const { error } = await supabase.from("tasks").update(payload).eq("id", task.id);
-      if (error) { toast.error(error.message); return; }
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
       onSaved(task.id);
     } else {
       const { data, error } = await supabase.from("tasks").insert(payload).select().single();
-      if (error) { toast.error(error.message); return; }
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
       onSaved(data.id);
     }
   };
@@ -538,28 +858,50 @@ function TaskDialog({ open, onOpenChange, task, profiles, userId, onSaved }: {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
-        <DialogHeader><DialogTitle>{task ? "Modifier la tâche" : "Nouvelle tâche"}</DialogTitle></DialogHeader>
+        <DialogHeader>
+          <DialogTitle>{task ? "Modifier la tâche" : "Nouvelle tâche"}</DialogTitle>
+        </DialogHeader>
         <div className="space-y-3">
           <Input placeholder="Titre" value={title} onChange={(e) => setTitle(e.target.value)} />
-          <Textarea placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} />
+          <Textarea
+            placeholder="Description"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
           <div className="grid grid-cols-2 gap-2">
             <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
             <Input type="time" value={dueTime} onChange={(e) => setDueTime(e.target.value)} />
           </div>
           <div className="grid grid-cols-3 gap-2">
-            <select value={priority} onChange={(e) => setPriority(e.target.value as Task["priority"])} className="rounded-md border bg-background px-2 py-2 text-sm">
+            <select
+              value={priority}
+              onChange={(e) => setPriority(e.target.value as Task["priority"])}
+              className="rounded-md border bg-background px-2 py-2 text-sm"
+            >
               <option value="high">Haute</option>
               <option value="medium">Moyenne</option>
               <option value="low">Basse</option>
             </select>
-            <select value={status} onChange={(e) => setStatus(e.target.value as Task["status"])} className="rounded-md border bg-background px-2 py-2 text-sm">
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value as Task["status"])}
+              className="rounded-md border bg-background px-2 py-2 text-sm"
+            >
               <option value="todo">À faire</option>
               <option value="doing">En cours</option>
               <option value="done">Terminé</option>
             </select>
-            <select value={assignedTo} onChange={(e) => setAssignedTo(e.target.value)} className="rounded-md border bg-background px-2 py-2 text-sm">
+            <select
+              value={assignedTo}
+              onChange={(e) => setAssignedTo(e.target.value)}
+              className="rounded-md border bg-background px-2 py-2 text-sm"
+            >
               <option value="">Non assigné</option>
-              {profiles.map((p) => <option key={p.id} value={p.id}>{p.full_name ?? p.id.slice(0, 8)}</option>)}
+              {profiles.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.full_name ?? p.id.slice(0, 8)}
+                </option>
+              ))}
             </select>
           </div>
         </div>

@@ -14,7 +14,9 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY non configurée");
 
-    const sys = system || "Tu es l'assistant IA de Kaayu Workspace, une plateforme de travail d'entreprise. Réponds en français de manière professionnelle, concise et utile. Aide à résumer documents, rédiger, traduire, organiser, et répondre aux questions.";
+    const sys =
+      system ||
+      "Tu es l'assistant IA de Kaayu Workspace, une plateforme de travail d'entreprise. Réponds en français de manière professionnelle, concise et utile. Aide à résumer documents, rédiger, traduire, organiser, et répondre aux questions.";
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -29,17 +31,32 @@ serve(async (req) => {
     });
 
     if (!response.ok) {
-      if (response.status === 429) return new Response(JSON.stringify({ error: "Trop de requêtes, réessayez plus tard." }), { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } });
-      if (response.status === 402) return new Response(JSON.stringify({ error: "Crédits IA épuisés. Ajoutez du crédit à votre espace Lovable." }), { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      if (response.status === 429)
+        return new Response(JSON.stringify({ error: "Trop de requêtes, réessayez plus tard." }), {
+          status: 429,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      if (response.status === 402)
+        return new Response(
+          JSON.stringify({
+            error: "Crédits IA épuisés. Ajoutez du crédit à votre espace Lovable.",
+          }),
+          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
       const t = await response.text();
       console.error("AI gateway error", response.status, t);
       throw new Error("Erreur du service IA");
     }
     const json = await response.json();
     const reply = json?.choices?.[0]?.message?.content ?? "";
-    return new Response(JSON.stringify({ reply }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ reply }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   } catch (e) {
     console.error("ai-chat error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Erreur inconnue" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return new Response(
+      JSON.stringify({ error: e instanceof Error ? e.message : "Erreur inconnue" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
   }
 });

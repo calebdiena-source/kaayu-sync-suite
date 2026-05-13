@@ -6,12 +6,20 @@ import { cn } from "@/lib/utils";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
+function errorMessage(error: unknown, fallback = "indisponible") {
+  return error instanceof Error ? error.message : fallback;
+}
+
 export function AIAssistant() {
   const [open, setOpen] = useState(false);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [messages, setMessages] = useState<Msg[]>([
-    { role: "assistant", content: "Bonjour ! Je suis votre assistant Kaayu. Posez-moi une question, demandez un résumé ou de l'aide pour rédiger." },
+    {
+      role: "assistant",
+      content:
+        "Bonjour ! Je suis votre assistant Kaayu. Posez-moi une question, demandez un résumé ou de l'aide pour rédiger.",
+    },
   ]);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -31,9 +39,12 @@ export function AIAssistant() {
         body: { messages: next },
       });
       if (error) throw error;
-      setMessages([...next, { role: "assistant", content: data?.reply ?? "Désolé, aucune réponse." }]);
-    } catch (e: any) {
-      setMessages([...next, { role: "assistant", content: "Erreur : " + (e?.message ?? "indisponible") }]);
+      setMessages([
+        ...next,
+        { role: "assistant", content: data?.reply ?? "Désolé, aucune réponse." },
+      ]);
+    } catch (e) {
+      setMessages([...next, { role: "assistant", content: "Erreur : " + errorMessage(e) }]);
     } finally {
       setLoading(false);
     }
@@ -48,21 +59,33 @@ export function AIAssistant() {
       >
         {open ? <X className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
       </button>
-      <div className={cn(
-        "fixed bottom-24 right-6 z-50 flex h-[32rem] w-[22rem] max-w-[calc(100vw-3rem)] flex-col rounded-xl border bg-card shadow-2xl transition-all",
-        open ? "scale-100 opacity-100" : "pointer-events-none scale-95 opacity-0"
-      )}>
+      <div
+        className={cn(
+          "fixed bottom-24 right-6 z-50 flex h-[32rem] w-[22rem] max-w-[calc(100vw-3rem)] flex-col rounded-xl border bg-card shadow-2xl transition-all",
+          open ? "scale-100 opacity-100" : "pointer-events-none scale-95 opacity-0",
+        )}
+      >
         <div className="flex items-center gap-2 border-b px-4 py-3">
           <Sparkles className="h-4 w-4 text-primary" />
           <div className="text-sm font-semibold">Assistant Kaayu</div>
         </div>
         <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto p-4">
           {messages.map((m, i) => (
-            <div key={i} className={cn("max-w-[85%] rounded-lg px-3 py-2 text-sm", m.role === "user" ? "ml-auto bg-primary text-primary-foreground" : "bg-muted")}>
+            <div
+              key={i}
+              className={cn(
+                "max-w-[85%] rounded-lg px-3 py-2 text-sm",
+                m.role === "user" ? "ml-auto bg-primary text-primary-foreground" : "bg-muted",
+              )}
+            >
               {m.content}
             </div>
           ))}
-          {loading && <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Réflexion…</div>}
+          {loading && (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin" /> Réflexion…
+            </div>
+          )}
         </div>
         <div className="flex gap-2 border-t p-3">
           <input
@@ -72,7 +95,9 @@ export function AIAssistant() {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && send()}
           />
-          <Button size="icon" onClick={send} disabled={loading}><Send className="h-4 w-4" /></Button>
+          <Button size="icon" onClick={send} disabled={loading}>
+            <Send className="h-4 w-4" />
+          </Button>
         </div>
       </div>
     </>

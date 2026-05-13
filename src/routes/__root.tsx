@@ -76,17 +76,37 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Kaayu workspace" },
-      { name: "description", content: "Kaayu Workspace est une plateforme cloud intelligente conçue pour centraliser la gestion documentaire, les réunions, les tâches et les reunions ." },
+      {
+        name: "description",
+        content:
+          "Kaayu Workspace est une plateforme cloud intelligente conçue pour centraliser la gestion documentaire, les réunions, les tâches et les reunions .",
+      },
       { name: "author", content: "Lovable" },
       { property: "og:title", content: "Kaayu workspace" },
-      { property: "og:description", content: "Kaayu Workspace est une plateforme cloud intelligente conçue pour centraliser la gestion documentaire, les réunions, les tâches et les reunions ." },
+      {
+        property: "og:description",
+        content:
+          "Kaayu Workspace est une plateforme cloud intelligente conçue pour centraliser la gestion documentaire, les réunions, les tâches et les reunions .",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
       { name: "twitter:site", content: "@Lovable" },
       { name: "twitter:title", content: "Kaayu workspace" },
-      { name: "twitter:description", content: "Kaayu Workspace est une plateforme cloud intelligente conçue pour centraliser la gestion documentaire, les réunions, les tâches et les reunions ." },
-      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/TxpUA318N9azbn9AcRmrwxaXp2D3/social-images/social-1778513506390-Kaayu_workspace.webp" },
-      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/TxpUA318N9azbn9AcRmrwxaXp2D3/social-images/social-1778513506390-Kaayu_workspace.webp" },
+      {
+        name: "twitter:description",
+        content:
+          "Kaayu Workspace est une plateforme cloud intelligente conçue pour centraliser la gestion documentaire, les réunions, les tâches et les reunions .",
+      },
+      {
+        property: "og:image",
+        content:
+          "https://storage.googleapis.com/gpt-engineer-file-uploads/TxpUA318N9azbn9AcRmrwxaXp2D3/social-images/social-1778513506390-Kaayu_workspace.webp",
+      },
+      {
+        name: "twitter:image",
+        content:
+          "https://storage.googleapis.com/gpt-engineer-file-uploads/TxpUA318N9azbn9AcRmrwxaXp2D3/social-images/social-1778513506390-Kaayu_workspace.webp",
+      },
       { name: "theme-color", content: "#6366F1" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
