@@ -1,8 +1,9 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { Upload, FileText, Search, Trash2, Download, Folder, FolderPlus, StickyNote, FileDown, Share2, Users } from "lucide-react";
+import { Upload, FileText, Search, Trash2, Download, Folder, FolderPlus, StickyNote, FileDown, Share2, Users, HardDrive } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -10,6 +11,7 @@ import { toast } from "sonner";
 import { exportRowsToCSV, exportRowsToPDF } from "@/lib/exports";
 import { ShareDocumentDialog } from "@/components/share-document-dialog";
 import { buildRateHeaderText, fetchLatestRates } from "@/lib/rate-header";
+import { driveAvailable, uploadDocumentToDrive, downloadDocumentFromDrive, deleteDocumentFromDrive } from "@/lib/drive.functions";
 
 export const Route = createFileRoute("/app/documents")({
   head: () => ({ meta: [{ title: "Documents — Kaayu" }] }),
