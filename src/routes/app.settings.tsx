@@ -70,20 +70,34 @@ function SettingsPage() {
           <div className="flex-1">
             <div className="flex items-center gap-2">
               <h3 className="font-semibold">Google Calendar</h3>
-              {info && <span className="inline-flex items-center gap-1 rounded-full bg-green-500/10 px-2 py-0.5 text-xs text-green-600"><Check className="h-3 w-3" />Connecté</span>}
+              {info && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-green-500/10 px-2 py-0.5 text-xs text-green-600">
+                  <Check className="h-3 w-3" />
+                  Connecté
+                </span>
+              )}
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
               Synchronisez automatiquement vos événements Kaayu avec votre Google Calendar (PC & téléphone).
             </p>
-            {info?.google_email && <p className="mt-2 text-xs text-muted-foreground">Compte : <span className="font-medium text-foreground">{info.google_email}</span></p>}
+            {info?.google_email && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                Compte : <span className="font-medium text-foreground">{info.google_email}</span>
+              </p>
+            )}
             <div className="mt-4 rounded-md border bg-background p-3 text-xs text-muted-foreground">
               <p className="font-medium text-foreground">redirect_uri Google OAuth</p>
               <p className="mt-2 break-all">Preview : {GOOGLE_REDIRECT_URIS.preview}</p>
               <p className="mt-1 break-all">Production : {GOOGLE_REDIRECT_URIS.production}</p>
             </div>
             <div className="mt-4 flex gap-2">
-              {loading ? <div className="text-sm text-muted-foreground">Chargement…</div> : info ? (
-                <Button variant="outline" onClick={disconnect}><Link2Off className="mr-2 h-4 w-4" />Déconnecter</Button>
+              {loading ? (
+                <div className="text-sm text-muted-foreground">Chargement…</div>
+              ) : info ? (
+                <Button variant="outline" onClick={disconnect}>
+                  <Link2Off className="mr-2 h-4 w-4" />
+                  Déconnecter
+                </Button>
               ) : (
                 <Button onClick={connect}>Connecter Google Calendar</Button>
               )}
