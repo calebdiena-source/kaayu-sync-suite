@@ -35,6 +35,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [user, loading, navigate]);
 
   useEffect(() => {
+    if (!loading) return;
+
+    const timeout = window.setTimeout(async () => {
+      const { data } = await supabase.auth.getSession();
+      void navigate({ to: data.session ? "/app/dashboard" : "/login", replace: true });
+    }, 3000);
+
+    return () => window.clearTimeout(timeout);
+  }, [loading, navigate]);
+
+  useEffect(() => {
     const stored = localStorage.getItem("theme");
     const isDark = stored === "dark" || (!stored && window.matchMedia("(prefers-color-scheme: dark)").matches);
     setDark(isDark);
