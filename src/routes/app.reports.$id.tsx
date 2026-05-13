@@ -1,0 +1,218 @@
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { ArrowLeft, Download, FileText, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { RichTextEditor } from "@/components/rich-text-editor";
+import { Document, Packer, Paragraph, HeadingLevel, TextRun } from "docx";
+import { jsPDF } from "jspdf";
+
+type RateStat = { first: number; last: number; min: number; max: number; avg: number; variation: number; count: number };
+type Stats = {
+  documents: { count: number; totalSize: number; byCategory: Record<string, number> };
+  versions: { count: number };
+  rates: {
+    usd_to_fc: RateStat | null;
+    eur_to_usd: RateStat | null;
+    chf_to_usd: RateStat | null;
+    timeline: any[];
+  };
+  tasks: { count: number; byStatus: Record<string, number> };
+  meetings: { count: number };
+};
+type Report = {
+  executive_summary: string;
+  key_points: string[];
+  rate_analysis: string;
+  activity_analysis: string;
+  recommendations: string[];
+};
+
+export const Route = createFileRoute("/app/reports/$id")({
+  head: () => ({ meta: [{ title: "Rapport mensuel — Kaayu" }] }),
+  component: ReportViewer,
+});
+
+function fmtBytes(n: number) {
+  if (!n) return "0 o";
+  const u = ["o", "Ko", "Mo", "Go"];
+  const i = Math.min(u.length - 1, Math.floor(Math.log(n) / Math.log(1024)));
+  return `${(n / Math.pow(1024, i)).toFixed(1)} ${u[i]}`;
+}
+
+function monthLabelOf(mo: string) {
+  const [y, m] = mo.split("-").map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+}
+
+function escapeHtml(s: string) {
+  return (s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c] as string));
+}
+
+function rateRowHtml(label: string, st: RateStat | null) {
+  if (!st) return `<tr><td><strong>${label}</strong></td><td colspan="6">Aucune donnée</td></tr>`;
+  return `<tr><td><strong>${label}</strong></td><td>${st.first.toFixed(6)}</td><td>${st.last.toFixed(6)}</td><td>${st.min.toFixed(6)}</td><td>${st.max.toFixed(6)}</td><td>${st.avg.toFixed(6)}</td><td>${st.variation.toFixed(2)} %</td></tr>`;
+}
+
+function buildHtml(r: Report, s: Stats, mo: string) {
+  return `
+<h1>Rapport mensuel — ${escapeHtml(monthLabelOf(mo))}</h1>
+<p><em>Généré le ${escapeHtml(new Date().toLocaleString("fr-FR"))} · Kaayu Workspace</em></p>
+<h2>Synthèse exécutive</h2>
+<p>${escapeHtml(r.executive_summary)}</p>
+<h2>Points clés</h2>
+<ul>${(r.key_points || []).map((k) => `<li>${escapeHtml(k)}</li>`).join("")}</ul>
+<h2>Analyse des taux de change</h2>
+<p>${escapeHtml(r.rate_analysis)}</p>
+<table>
+  <thead><tr><th>Devise</th><th>Début</th><th>Fin</th><th>Min</th><th>Max</th><th>Moyenne</th><th>Variation</th></tr></thead>
+  <tbody>
+    ${rateRowHtml("USD → FC", s.rates.usd_to_fc)}
+    ${rateRowHtml("EUR → USD", s.rates.eur_to_usd)}
+    ${rateRowHtml("CHF → USD", s.rates.chf_to_usd)}
+  </tbody>
+</table>
+<h2>Analyse de l'activité</h2>
+<p>${escapeHtml(r.activity_analysis)}</p>
+<h2>Indicateurs</h2>
+<ul>
+  <li>Documents créés : ${s.documents.count} (${fmtBytes(s.documents.totalSize)})</li>
+  <li>Nouvelles versions : ${s.versions.count}</li>
+  <li>Tâches : ${s.tasks.count}</li>
+  <li>Réunions : ${s.meetings.count}</li>
+</ul>
+<h2>Recommandations</h2>
+<ul>${(r.recommendations || []).map((p) => `<li>${escapeHtml(p)}</li>`).join("")}</ul>
+<p></p>
+`;
+}
+
+function htmlToPlainBlocks(html: string): { text: string; level: 0 | 1 | 2 | 3; bullet?: boolean }[] {
+  const div = document.createElement("div");
+  div.innerHTML = html;
+  const out: { text: string; level: 0 | 1 | 2 | 3; bullet?: boolean }[] = [];
+  const walk = (node: Node) => {
+    if (!(node instanceof HTMLElement)) return;
+    const tag = node.tagName.toLowerCase();
+    const text = (node.textContent ?? "").trim();
+    if (tag === "h1" && text) out.push({ text, level: 1 });
+    else if (tag === "h2" && text) out.push({ text, level: 2 });
+    else if (tag === "h3" && text) out.push({ text, level: 3 });
+    else if (tag === "li" && text) out.push({ text, level: 0, bullet: true });
+    else if ((tag === "p" || tag === "blockquote") && text) out.push({ text, level: 0 });
+    else node.childNodes.forEach(walk);
+  };
+  div.childNodes.forEach(walk);
+  return out;
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function exportDocx(html: string, filename: string) {
+  const blocks = htmlToPlainBlocks(html);
+  const children = blocks.map((b) => {
+    if (b.level === 1) return new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: b.text, bold: true })] });
+    if (b.level === 2) return new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun({ text: b.text, bold: true })] });
+    if (b.level === 3) return new Paragraph({ heading: HeadingLevel.HEADING_3, children: [new TextRun({ text: b.text, bold: true })] });
+    if (b.bullet) return new Paragraph({ text: b.text, bullet: { level: 0 } });
+    return new Paragraph({ children: [new TextRun(b.text)] });
+  });
+  const doc = new Document({ sections: [{ children }] });
+  const blob = await Packer.toBlob(doc);
+  downloadBlob(blob, filename);
+}
+
+function exportPdf(html: string, filename: string) {
+  const blocks = htmlToPlainBlocks(html);
+  const pdf = new jsPDF({ unit: "pt", format: "a4" });
+  const margin = 40;
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  let y = margin;
+  const ensure = (h: number) => { if (y + h > pageH - margin) { pdf.addPage(); y = margin; } };
+  const write = (text: string, size: number, bold: boolean, color: [number, number, number], indent = 0) => {
+    pdf.setFont("helvetica", bold ? "bold" : "normal");
+    pdf.setFontSize(size);
+    pdf.setTextColor(...color);
+    const lines = pdf.splitTextToSize(text, pageW - margin * 2 - indent);
+    const lh = size * 1.35;
+    for (const l of lines) { ensure(lh); pdf.text(l, margin + indent, y); y += lh; }
+  };
+  for (const b of blocks) {
+    if (b.level === 1) { y += 6; write(b.text, 18, true, [10, 30, 80]); y += 4; }
+    else if (b.level === 2) { y += 6; write(b.text, 14, true, [20, 60, 120]); y += 2; }
+    else if (b.level === 3) { y += 4; write(b.text, 12, true, [30, 30, 30]); }
+    else if (b.bullet) { write(`• ${b.text}`, 11, false, [30, 30, 30], 12); }
+    else { write(b.text, 11, false, [30, 30, 30]); }
+  }
+  pdf.save(filename);
+}
+
+function ReportViewer() {
+  const { id } = Route.useParams();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [html, setHtml] = useState<string>("<p></p>");
+  const [month, setMonth] = useState<string>("");
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("monthly_reports")
+          .select("id,month,stats,report")
+          .eq("id", id)
+          .maybeSingle();
+        if (!active) return;
+        if (error || !data) {
+          toast.error("Rapport introuvable");
+          navigate({ to: "/app/reports" });
+          return;
+        }
+        setMonth(data.month);
+        setHtml(buildHtml(data.report as Report, data.stats as Stats, data.month));
+      } catch (e: any) {
+        toast.error(e?.message || "Erreur de chargement");
+      } finally {
+        if (active) setLoading(false);
+      }
+    })();
+    return () => { active = false; };
+  }, [id, navigate]);
+
+  const baseName = useMemo(() => `rapport-kaayu-${month || "rapport"}`, [month]);
+
+  if (loading) return <div className="text-sm text-muted-foreground">Chargement…</div>;
+
+  return (
+    <div className="mx-auto max-w-5xl space-y-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="ghost" size="sm" asChild>
+          <Link to="/app/reports"><ArrowLeft className="mr-1 h-4 w-4" /> Retour</Link>
+        </Button>
+        <h1 className="text-lg font-semibold">Rapport — {month ? monthLabelOf(month) : ""}</h1>
+        <div className="ml-auto flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => exportPdf(html, `${baseName}.pdf`)}>
+            <FileText className="mr-1 h-4 w-4" /> PDF
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => exportDocx(html, `${baseName}.docx`)}>
+            <Download className="mr-1 h-4 w-4" /> DOCX
+          </Button>
+        </div>
+      </div>
+
+      <div className="overflow-hidden rounded-xl border bg-card">
+        <RichTextEditor value={html} onChange={setHtml} editable placeholder="Rapport mensuel…" />
+      </div>
+    </div>
+  );
+}
