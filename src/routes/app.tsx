@@ -24,13 +24,13 @@ function AppLayout() {
   useEffect(() => {
     const timeout = window.setTimeout(async () => {
       const { data } = await supabase.auth.getSession();
-      void navigate({ to: data.session ? "/app" : "/login", replace: true });
+      void navigate({ to: data.session ? "/app/dashboard" : "/login", replace: true });
     }, 3000);
 
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_IN" && session) {
         window.clearTimeout(timeout);
-        void navigate({ to: "/app", replace: true });
+        void navigate({ to: "/app/dashboard", replace: true });
       }
     });
 
