@@ -40,7 +40,8 @@ export const getGoogleStatus = createServerFn({ method: "GET" })
     const { data } = await supabaseAdmin
       .from("google_integrations")
       .select("google_email, sync_enabled, calendar_id, created_at")
-      .eq("user_id", context.userId).maybeSingle();
+      .eq("user_id", context.userId)
+      .maybeSingle();
     return data;
   });
 
