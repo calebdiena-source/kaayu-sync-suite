@@ -28,7 +28,10 @@ export const startGoogleConnect = createServerFn({ method: "POST" })
       entity: "google",
       metadata: { state, redirect_uri: redirectUri },
     });
-    return { url: buildAuthUrl(origin, state), redirectUri };
+    return {
+      url: buildAuthUrl(origin, state),
+      redirectUri,
+    };
   });
 
 export const getGoogleStatus = createServerFn({ method: "GET" })
@@ -53,11 +56,16 @@ export const syncEventToGoogle = createServerFn({ method: "POST" })
   .inputValidator((d: { eventId: string }) => d)
   .handler(async ({ data, context }) => {
     const { data: ev } = await supabaseAdmin
-      .from("calendar_events").select("*").eq("id", data.eventId).eq("user_id", context.userId).maybeSingle();
+      .from("calendar_events")
+      .select("*")
+      .eq("id", data.eventId)
+      .eq("user_id", context.userId)
+      .maybeSingle();
     if (!ev) throw new Error("Event not found");
     const googleId = await pushEvent(context.userId, ev, ev.google_event_id);
     if (googleId) {
-      await supabaseAdmin.from("calendar_events")
+      await supabaseAdmin
+        .from("calendar_events")
         .update({ google_event_id: googleId, google_synced_at: new Date().toISOString() })
         .eq("id", ev.id);
     }
