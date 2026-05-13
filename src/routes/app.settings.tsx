@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
-import { startGoogleConnect, getGoogleStatus, disconnectGoogle, GOOGLE_REDIRECT_URIS } from "@/lib/google.functions";
+import { startGoogleConnect, getGoogleStatus, disconnectGoogle } from "@/lib/google.functions";
+import { GOOGLE_REDIRECT_URIS } from "@/lib/google-oauth-config";
 import { Button } from "@/components/ui/button";
 import { CalendarDays, Check, Link2Off } from "lucide-react";
 import { toast } from "sonner";
@@ -11,17 +12,23 @@ export const Route = createFileRoute("/app/settings")({
   component: SettingsPage,
 });
 
+type GoogleStatus = { google_email?: string | null; sync_enabled?: boolean } | null;
+
 function SettingsPage() {
   const start = useServerFn(startGoogleConnect);
   const status = useServerFn(getGoogleStatus);
   const disc = useServerFn(disconnectGoogle);
-  const [info, setInfo] = useState<{ google_email?: string | null; sync_enabled?: boolean } | null>(null);
+  const [info, setInfo] = useState<GoogleStatus>(null);
   const [loading, setLoading] = useState(true);
 
-  const refresh = async () => {
+  const refresh = useCallback(async () => {
     setLoading(true);
-    try { setInfo((await status({})) as any); } finally { setLoading(false); }
-  };
+    try {
+      setInfo((await status({})) as GoogleStatus);
+    } finally {
+      setLoading(false);
+    }
+  }, [status]);
 
   useEffect(() => {
     refresh();
@@ -29,7 +36,7 @@ function SettingsPage() {
     if (params.get("google") === "ok") toast.success("Google Calendar connecté");
     else if (params.get("google") === "err") toast.error(`Échec : ${params.get("msg")}`);
     if (params.has("google")) window.history.replaceState({}, "", "/app/settings");
-  }, []);
+  }, [refresh]);
 
   const connect = async () => {
     try {
@@ -37,11 +44,15 @@ function SettingsPage() {
       console.info("Google Calendar OAuth redirect_uri:", redirectUri);
       console.info("Google Calendar OAuth complete URL:", url);
       window.location.href = url;
-    } catch (e: any) { toast.error(e?.message ?? "Erreur"); }
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Erreur");
+    }
   };
 
   const disconnect = async () => {
-    await disc({}); toast.success("Déconnecté"); refresh();
+    await disc({});
+    toast.success("Déconnecté");
+    refresh();
   };
 
   return (
