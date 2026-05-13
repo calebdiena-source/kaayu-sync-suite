@@ -78,7 +78,8 @@ function SettingsPage() {
               )}
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              Synchronisez automatiquement vos événements Kaayu avec votre Google Calendar (PC & téléphone).
+              Synchronisez automatiquement vos événements Kaayu avec votre Google Calendar (PC &
+              téléphone).
             </p>
             {info?.google_email && (
               <p className="mt-2 text-xs text-muted-foreground">
