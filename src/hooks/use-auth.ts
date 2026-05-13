@@ -13,6 +13,7 @@ export function useAuth() {
   useEffect(() => {
     let active = true;
     let initialSessionLoaded = false;
+    let hasAuthenticatedSession = false;
 
     const loadRoles = async (userId: string) => {
       const { data } = await supabase.from("user_roles").select("role").eq("user_id", userId);
@@ -22,6 +23,7 @@ export function useAuth() {
 
     const apply = (s: Session | null) => {
       if (!active) return;
+      if (s?.user) hasAuthenticatedSession = true;
       setSession(s);
       setUser(s?.user ?? null);
       if (s?.user) {
@@ -35,7 +37,11 @@ export function useAuth() {
     // Subscribe first, but don't let an early null INITIAL_SESSION redirect
     // protected pages before storage restoration has completed.
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
-      if (!initialSessionLoaded && event === "INITIAL_SESSION") return;
+      if (!initialSessionLoaded && event === "INITIAL_SESSION") {
+        if (!s?.user) return;
+        initialSessionLoaded = true;
+      }
+      if (event === "SIGNED_OUT") hasAuthenticatedSession = false;
       apply(s);
     });
 
@@ -43,7 +49,7 @@ export function useAuth() {
       .getSession()
       .then(({ data }) => {
         initialSessionLoaded = true;
-        apply(data.session);
+        if (data.session || !hasAuthenticatedSession) apply(data.session);
       })
       .catch(() => {
         initialSessionLoaded = true;
