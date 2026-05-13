@@ -33,26 +33,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (loading) return;
     if (!user) {
-      navigate({ to: "/login" });
+      navigate({ to: "/login", replace: true });
       return;
     }
     if (location.pathname === "/app" || location.pathname === "/app/") {
       navigate({ to: "/app/dashboard", replace: true });
     }
   }, [user, loading, navigate, location.pathname]);
-
-  useEffect(() => {
-    if (!loading) return;
-
-    const timeout = window.setTimeout(async () => {
-      const sessionPromise = supabase.auth.getSession();
-      const fallbackPromise = new Promise<"timeout">((resolve) => window.setTimeout(() => resolve("timeout"), 1000));
-      const result = await Promise.race([sessionPromise, fallbackPromise]);
-      void navigate({ to: result !== "timeout" && result.data.session ? "/app/dashboard" : "/login", replace: true });
-    }, 3000);
-
-    return () => window.clearTimeout(timeout);
-  }, [loading, navigate]);
 
   useEffect(() => {
     const stored = localStorage.getItem("theme");
