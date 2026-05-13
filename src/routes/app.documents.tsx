@@ -179,7 +179,9 @@ function DocsPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold tracking-tight">Documents</h2>
-          <p className="text-sm text-muted-foreground">Stockage cloud sécurisé · {docs.length} fichier(s)</p>
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+            {useDrive ? (<><HardDrive className="h-3.5 w-3.5 text-primary" /> Google Drive connecté</>) : "Stockage cloud sécurisé"} · {docs.length} fichier(s)
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => exportList("csv")}><FileDown className="mr-1 h-4 w-4" />CSV</Button>
