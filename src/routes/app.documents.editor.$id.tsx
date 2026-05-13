@@ -134,6 +134,7 @@ function DocumentEditor() {
           if (isDocx) {
             try {
               const arrayBuffer = await blob.arrayBuffer();
+              const mammoth = (await import("mammoth/mammoth.browser")).default;
               const { value } = await mammoth.convertToHtml({ arrayBuffer });
               setHtml(value || "<p></p>");
             } catch (e: any) {
