@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Save, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { RichTextEditor } from "@/components/rich-text-editor";
-import { Document, Packer, Paragraph, HeadingLevel, TextRun } from "docx";
 import {
   buildRateHeaderHtml,
   buildRateHeaderText,
@@ -19,7 +18,7 @@ const DOCX_MIME =
 
 type SearchParams = { name?: string };
 
-export const Route = createFileRoute("/app/documents/editor/$id")({
+export const Route = createFileRoute("/app/documents_/editor/$id")({
   head: () => ({ meta: [{ title: "Éditeur — Kaayu" }] }),
   validateSearch: (s: Record<string, unknown>): SearchParams => ({
     name: typeof s.name === "string" ? s.name : undefined,
@@ -28,9 +27,10 @@ export const Route = createFileRoute("/app/documents/editor/$id")({
 });
 
 async function htmlToDocxBlob(title: string, html: string): Promise<Blob> {
+  const { Document, Packer, Paragraph, HeadingLevel, TextRun } = await import("docx");
   const container = document.createElement("div");
   container.innerHTML = html;
-  const paragraphs: Paragraph[] = [
+  const paragraphs: InstanceType<typeof Paragraph>[] = [
     new Paragraph({
       heading: HeadingLevel.HEADING_1,
       children: [new TextRun({ text: title, bold: true })],

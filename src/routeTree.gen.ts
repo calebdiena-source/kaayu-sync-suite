@@ -24,7 +24,7 @@ import { Route as AppCalendarRouteImport } from './routes/app.calendar'
 import { Route as AppAdminRouteImport } from './routes/app.admin'
 import { Route as AppNotesIdRouteImport } from './routes/app.notes.$id'
 import { Route as AppDocumentsIdRouteImport } from './routes/app.documents.$id'
-import { Route as AppDocumentsEditorIdRouteImport } from './routes/app.documents.editor.$id'
+import { Route as AppDocumentsEditorIdRouteImport } from './routes/app.documents_.editor.$id'
 import { Route as ApiPublicGoogleCallbackRouteImport } from './routes/api/public/google.callback'
 
 const LoginRoute = LoginRouteImport.update({
@@ -103,9 +103,9 @@ const AppDocumentsIdRoute = AppDocumentsIdRouteImport.update({
   getParentRoute: () => AppDocumentsRoute,
 } as any)
 const AppDocumentsEditorIdRoute = AppDocumentsEditorIdRouteImport.update({
-  id: '/editor/$id',
-  path: '/editor/$id',
-  getParentRoute: () => AppDocumentsRoute,
+  id: '/documents_/editor/$id',
+  path: '/documents/editor/$id',
+  getParentRoute: () => AppRoute,
 } as any)
 const ApiPublicGoogleCallbackRoute = ApiPublicGoogleCallbackRouteImport.update({
   id: '/api/public/google/callback',
@@ -168,7 +168,7 @@ export interface FileRoutesById {
   '/app/documents/$id': typeof AppDocumentsIdRoute
   '/app/notes/$id': typeof AppNotesIdRoute
   '/api/public/google/callback': typeof ApiPublicGoogleCallbackRoute
-  '/app/documents/editor/$id': typeof AppDocumentsEditorIdRoute
+  '/app/documents_/editor/$id': typeof AppDocumentsEditorIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -226,7 +226,7 @@ export interface FileRouteTypes {
     | '/app/documents/$id'
     | '/app/notes/$id'
     | '/api/public/google/callback'
-    | '/app/documents/editor/$id'
+    | '/app/documents_/editor/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -343,12 +343,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppDocumentsIdRouteImport
       parentRoute: typeof AppDocumentsRoute
     }
-    '/app/documents/editor/$id': {
-      id: '/app/documents/editor/$id'
-      path: '/editor/$id'
+    '/app/documents_/editor/$id': {
+      id: '/app/documents_/editor/$id'
+      path: '/documents/editor/$id'
       fullPath: '/app/documents/editor/$id'
       preLoaderRoute: typeof AppDocumentsEditorIdRouteImport
-      parentRoute: typeof AppDocumentsRoute
+      parentRoute: typeof AppRoute
     }
     '/api/public/google/callback': {
       id: '/api/public/google/callback'
@@ -362,12 +362,10 @@ declare module '@tanstack/react-router' {
 
 interface AppDocumentsRouteChildren {
   AppDocumentsIdRoute: typeof AppDocumentsIdRoute
-  AppDocumentsEditorIdRoute: typeof AppDocumentsEditorIdRoute
 }
 
 const AppDocumentsRouteChildren: AppDocumentsRouteChildren = {
   AppDocumentsIdRoute: AppDocumentsIdRoute,
-  AppDocumentsEditorIdRoute: AppDocumentsEditorIdRoute,
 }
 
 const AppDocumentsRouteWithChildren = AppDocumentsRoute._addFileChildren(
@@ -397,6 +395,7 @@ interface AppRouteChildren {
   AppSettingsRoute: typeof AppSettingsRoute
   AppTasksRoute: typeof AppTasksRoute
   AppIndexRoute: typeof AppIndexRoute
+  AppDocumentsEditorIdRoute: typeof AppDocumentsEditorIdRoute
 }
 
 const AppRouteChildren: AppRouteChildren = {
@@ -410,6 +409,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppSettingsRoute: AppSettingsRoute,
   AppTasksRoute: AppTasksRoute,
   AppIndexRoute: AppIndexRoute,
+  AppDocumentsEditorIdRoute: AppDocumentsEditorIdRoute,
 }
 
 const AppRouteWithChildren = AppRoute._addFileChildren(AppRouteChildren)
