@@ -27,9 +27,10 @@ export const Route = createFileRoute("/app/documents/editor/$id")({
 });
 
 async function htmlToDocxBlob(title: string, html: string): Promise<Blob> {
+  const { Document, Packer, Paragraph, HeadingLevel, TextRun } = await import("docx");
   const container = document.createElement("div");
   container.innerHTML = html;
-  const paragraphs: Paragraph[] = [
+  const paragraphs: InstanceType<typeof Paragraph>[] = [
     new Paragraph({
       heading: HeadingLevel.HEADING_1,
       children: [new TextRun({ text: title, bold: true })],
