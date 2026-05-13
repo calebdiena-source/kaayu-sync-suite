@@ -1,10 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
-import { ScanLine, Sparkles, Loader2, FileDown, Upload, FileText, NotebookPen, Check } from "lucide-react";
+import { useRef, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
+import { ScanLine, Sparkles, Loader2, FileDown, Upload, FileText, FolderOpen, Save, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
+import { uploadDocumentToDrive, driveAvailable } from "@/lib/drive.functions";
 
 export const Route = createFileRoute("/app/ocr")({
   head: () => ({ meta: [{ title: "OCR & IA — Kaayu" }] }),
@@ -19,6 +21,44 @@ const fileToDataUrl = (file: File) =>
     r.readAsDataURL(file);
   });
 
+const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+async function buildDocxBlob(title: string, content: string): Promise<Blob> {
+  const { Document, Packer, Paragraph, TextRun, HeadingLevel } = await import("docx");
+  const paragraphs = content.split(/\n+/).map(
+    (line) => new Paragraph({ children: [new TextRun(line)] })
+  );
+  const doc = new Document({
+    sections: [{
+      children: [
+        new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun({ text: title, bold: true })] }),
+        ...paragraphs,
+      ],
+    }],
+  });
+  return await Packer.toBlob(doc);
+}
+
+function blobToB64(blob: Blob): Promise<string> {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onerror = () => rej(r.error);
+    r.onload = () => {
+      const s = String(r.result || "");
+      const i = s.indexOf(",");
+      res(i >= 0 ? s.slice(i + 1) : s);
+    };
+    r.readAsDataURL(blob);
+  });
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 function OcrPage() {
   const { user } = useAuth();
   const [text, setText] = useState("");
@@ -26,43 +66,12 @@ function OcrPage() {
   const [loading, setLoading] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [scanFileName, setScanFileName] = useState<string>("");
-  const [noteId, setNoteId] = useState<string | null>(null);
-  const [savingNote, setSavingNote] = useState(false);
-  const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const [savingDoc, setSavingDoc] = useState(false);
+  const [savedDocId, setSavedDocId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Auto-save the IA result as a Note (same shape as other notes).
-  useEffect(() => {
-    if (!user || !result.trim()) return;
-    const handle = setTimeout(async () => {
-      setSavingNote(true);
-      const title = (scanFileName || `Transcription IA ${new Date().toLocaleDateString("fr-FR")}`).slice(0, 120);
-      // Store as HTML paragraphs so it renders properly in the notes editor.
-      const html = result
-        .split(/\n+/)
-        .map((p) => `<p>${p.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") || "<br/>"}</p>`)
-        .join("");
-      if (!noteId) {
-        const { data, error } = await supabase
-          .from("notes")
-          .insert({ user_id: user.id, title, content: html })
-          .select("id")
-          .single();
-        if (error) toast.error(error.message);
-        else { setNoteId(data.id); setSavedAt(new Date()); }
-      } else {
-        const { error } = await supabase
-          .from("notes")
-          .update({ title, content: html, updated_at: new Date().toISOString() })
-          .eq("id", noteId);
-        if (error) toast.error(error.message);
-        else setSavedAt(new Date());
-      }
-      setSavingNote(false);
-    }, 1200);
-    return () => clearTimeout(handle);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [result, user?.id]);
+  const uploadDrive = useServerFn(uploadDocumentToDrive);
+  const checkDrive = useServerFn(driveAvailable);
 
   const callAi = async (messages: any[]) => {
     const { data, error } = await supabase.functions.invoke("ai-chat", { body: { messages } });
@@ -79,6 +88,7 @@ function OcrPage() {
     }
     setScanning(true);
     setScanFileName(file.name);
+    setSavedDocId(null);
     try {
       const dataUrl = await fileToDataUrl(file);
       const reply = await callAi([
@@ -107,6 +117,7 @@ function OcrPage() {
   const process = async (mode: "ocr" | "rewrite" | "translate" | "summary") => {
     if (!text) return;
     setLoading(true);
+    setSavedDocId(null);
     const prompts: Record<string, string> = {
       ocr: `Tu es un assistant OCR. Corrige et structure ce texte (issu d'écriture manuscrite ou OCR) en français, en respectant les paragraphes :\n\n${text}`,
       rewrite: `Réécris ce texte de manière professionnelle en français :\n\n${text}`,
@@ -122,30 +133,75 @@ function OcrPage() {
     }
   };
 
-  const exportTxt = () => {
-    const blob = new Blob([result], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = "kaayu-export.txt"; a.click(); URL.revokeObjectURL(url);
+  const baseTitle = () =>
+    (scanFileName.replace(/\.[^.]+$/, "") || `Transcription IA ${new Date().toLocaleDateString("fr-FR")}`).slice(0, 120);
+
+  const saveAsDocument = async () => {
+    if (!user || !result.trim()) return;
+    setSavingDoc(true);
+    try {
+      const title = baseTitle();
+      const filename = `${title}.docx`;
+      const blob = await buildDocxBlob(title, result);
+      const size = blob.size;
+
+      // Try Google Drive first if connected, otherwise Supabase Storage.
+      let drv = { available: false } as { available: boolean };
+      try { drv = await checkDrive(); } catch { /* ignore */ }
+
+      if (drv.available) {
+        const dataB64 = await blobToB64(blob);
+        const r = await uploadDrive({ data: { name: filename, mimeType: DOCX_MIME, dataB64, folderId: null } });
+        setSavedDocId(r.id);
+        toast.success("Enregistré dans Documents (Google Drive)");
+      } else {
+        const path = `${user.id}/${Date.now()}-${filename}`;
+        const { error: upErr } = await supabase.storage.from("documents").upload(path, blob, { contentType: DOCX_MIME });
+        if (upErr) throw upErr;
+        const { data: docRow, error: dbErr } = await supabase.from("documents").insert({
+          user_id: user.id, name: filename, storage_path: path,
+          mime_type: DOCX_MIME, size_bytes: size, folder_id: null,
+        }).select("id").single();
+        if (dbErr) throw dbErr;
+        await supabase.from("document_versions").insert({
+          document_id: docRow.id, version_number: 1, storage_path: path,
+          size_bytes: size, mime_type: DOCX_MIME, created_by: user.id,
+          comment: "Transcription IA",
+        });
+        setSavedDocId(docRow.id);
+        toast.success("Enregistré dans Documents");
+      }
+    } catch (e: any) {
+      toast.error(e.message ?? "Échec de l'enregistrement");
+    } finally {
+      setSavingDoc(false);
+    }
   };
 
   const exportDocx = async () => {
     if (!result) return;
     try {
-      const { Document, Packer, Paragraph, TextRun } = await import("docx");
-      const paragraphs = result.split(/\n+/).map(
-        (line) => new Paragraph({ children: [new TextRun(line)] })
-      );
-      const doc = new Document({ sections: [{ children: paragraphs }] });
-      const blob = await Packer.toBlob(doc);
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `transcription-${Date.now()}.docx`;
-      a.click();
-      URL.revokeObjectURL(url);
+      const blob = await buildDocxBlob(baseTitle(), result);
+      downloadBlob(blob, `${baseTitle()}.docx`);
       toast.success("Fichier .docx téléchargé");
     } catch (e: any) {
       toast.error(e.message ?? "Erreur export DOCX");
+    }
+  };
+
+  const exportPdf = async () => {
+    if (!result) return;
+    try {
+      const { default: jsPDF } = await import("jspdf");
+      const doc = new jsPDF();
+      doc.setFontSize(16); doc.text(baseTitle(), 14, 18);
+      doc.setFontSize(11);
+      const lines = doc.splitTextToSize(result, 180);
+      doc.text(lines, 14, 28);
+      doc.save(`${baseTitle()}.pdf`);
+      toast.success("Fichier .pdf téléchargé");
+    } catch (e: any) {
+      toast.error(e.message ?? "Erreur export PDF");
     }
   };
 
@@ -175,7 +231,7 @@ function OcrPage() {
           />
           {scanFileName && <span className="text-xs text-muted-foreground"><FileText className="mr-1 inline h-3.5 w-3.5" />{scanFileName}</span>}
         </div>
-        <p className="mt-2 text-xs text-muted-foreground">L'IA Gemini extrait fidèlement le texte (manuscrit ou imprimé) et le place dans la zone ci-dessous. Vous pouvez ensuite l'exporter en .docx.</p>
+        <p className="mt-2 text-xs text-muted-foreground">L'IA Gemini extrait fidèlement le texte (manuscrit ou imprimé). Vous pouvez ensuite l'enregistrer dans Documents ou l'exporter.</p>
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -191,32 +247,43 @@ function OcrPage() {
         </div>
 
         <div className="rounded-xl border bg-card p-4">
-          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-            <div className="flex items-center gap-2 text-sm font-semibold"><Sparkles className="h-4 w-4 text-primary" /> Résultat IA</div>
-            {result && (
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                  {savingNote ? (<><Loader2 className="h-3 w-3 animate-spin" /> Enregistrement…</>) : savedAt ? (<><Check className="h-3 w-3 text-emerald-500" /> Enregistré dans Notes</>) : null}
-                </span>
-                {noteId && (
-                  <Button asChild size="sm" variant="ghost"><Link to="/app/notes/$id" params={{ id: noteId }}><NotebookPen className="mr-1.5 h-3.5 w-3.5" />Ouvrir la note</Link></Button>
-                )}
-                <Button size="sm" variant="outline" onClick={exportTxt}><FileDown className="mr-1.5 h-3.5 w-3.5" />.txt</Button>
-                <Button size="sm" onClick={exportDocx}><FileDown className="mr-1.5 h-3.5 w-3.5" />.docx</Button>
-              </div>
-            )}
-          </div>
+          <div className="mb-2 flex items-center gap-2 text-sm font-semibold"><Sparkles className="h-4 w-4 text-primary" /> Résultat IA</div>
           {loading || scanning ? (
             <div className="flex min-h-[20rem] items-center gap-2 rounded-md border bg-background p-3 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Traitement IA…</div>
           ) : result ? (
             <textarea
               value={result}
-              onChange={(e) => setResult(e.target.value)}
+              onChange={(e) => { setResult(e.target.value); setSavedDocId(null); }}
               rows={14}
               className="w-full rounded-md border bg-background p-3 text-sm"
             />
           ) : (
             <div className="min-h-[20rem] rounded-md border bg-background p-3 text-sm text-muted-foreground">Le résultat apparaîtra ici.</div>
+          )}
+
+          {result && (
+            <div className="mt-3 space-y-2">
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" onClick={saveAsDocument} disabled={savingDoc}>
+                  {savingDoc ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Save className="mr-1.5 h-3.5 w-3.5" />}
+                  Enregistrer dans Documents (.docx)
+                </Button>
+                <Button size="sm" variant="outline" onClick={exportPdf}>
+                  <FileDown className="mr-1.5 h-3.5 w-3.5" />Exporter PDF
+                </Button>
+                <Button size="sm" variant="outline" onClick={exportDocx}>
+                  <FileDown className="mr-1.5 h-3.5 w-3.5" />Exporter DOCX
+                </Button>
+              </div>
+              {savedDocId && (
+                <div className="flex items-center gap-2 text-xs text-emerald-600">
+                  <Check className="h-3.5 w-3.5" /> Enregistré dans Documents.
+                  <Button asChild size="sm" variant="ghost" className="h-6 px-2">
+                    <Link to="/app/documents"><FolderOpen className="mr-1 h-3 w-3" />Ouvrir Documents</Link>
+                  </Button>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
