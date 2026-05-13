@@ -1,9 +1,11 @@
-import { createFileRoute, Outlet } from "@tanstack/react-router";
+import { createFileRoute, Outlet, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { AppShell } from "@/components/app-shell";
 import { supabase } from "@/integrations/supabase/client";
 
 function AppLayout() {
+  const navigate = useNavigate();
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const hash = window.location.hash;
@@ -18,6 +20,25 @@ function AppLayout() {
       window.history.replaceState(null, "", window.location.pathname + window.location.search);
     }
   }, []);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(async () => {
+      const { data } = await supabase.auth.getSession();
+      void navigate({ to: data.session ? "/app" : "/login", replace: true });
+    }, 3000);
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_IN" && session) {
+        window.clearTimeout(timeout);
+        void navigate({ to: "/app", replace: true });
+      }
+    });
+
+    return () => {
+      window.clearTimeout(timeout);
+      authListener.subscription.unsubscribe();
+    };
+  }, [navigate]);
 
   return (
     <AppShell>
