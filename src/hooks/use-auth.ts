@@ -4,6 +4,32 @@ import type { Session, User } from "@supabase/supabase-js";
 
 export type AppRole = "admin" | "manager" | "employee";
 
+const AUTH_TIMEOUT_MS = 3000;
+
+const timeout = <T,>(promise: Promise<T>, ms = AUTH_TIMEOUT_MS) =>
+  Promise.race([
+    promise,
+    new Promise<"timeout">((resolve) => window.setTimeout(() => resolve("timeout"), ms)),
+  ]);
+
+const getStoredSession = (): Session | null => {
+  if (typeof window === "undefined") return null;
+
+  for (let i = 0; i < window.localStorage.length; i += 1) {
+    const key = window.localStorage.key(i);
+    if (!key?.startsWith("sb-") || !key.endsWith("-auth-token")) continue;
+
+    try {
+      const value = JSON.parse(window.localStorage.getItem(key) ?? "null");
+      if (value?.access_token && value?.refresh_token && value?.user) return value as Session;
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+};
+
 export function useAuth() {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
@@ -47,16 +73,21 @@ export function useAuth() {
           const access_token = params.get("access_token");
           const refresh_token = params.get("refresh_token");
           if (access_token && refresh_token) {
-            await supabase.auth.setSession({ access_token, refresh_token });
+            const result = await timeout(supabase.auth.setSession({ access_token, refresh_token }));
             window.history.replaceState(null, "", window.location.pathname + window.location.search);
+            if (result !== "timeout") {
+              initialSessionChecked = true;
+              applySession(result.data.session);
+              return;
+            }
           }
         }
-        const { data } = await supabase.auth.getSession();
+        const result = await timeout(supabase.auth.getSession());
         initialSessionChecked = true;
-        applySession(data.session);
+        applySession(result === "timeout" ? getStoredSession() : result.data.session);
       } catch {
         initialSessionChecked = true;
-        applySession(null);
+        applySession(getStoredSession());
       }
     };
 

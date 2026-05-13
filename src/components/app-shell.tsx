@@ -45,8 +45,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (!loading) return;
 
     const timeout = window.setTimeout(async () => {
-      const { data } = await supabase.auth.getSession();
-      void navigate({ to: data.session ? "/app/dashboard" : "/login", replace: true });
+      const sessionPromise = supabase.auth.getSession();
+      const fallbackPromise = new Promise<"timeout">((resolve) => window.setTimeout(() => resolve("timeout"), 1000));
+      const result = await Promise.race([sessionPromise, fallbackPromise]);
+      void navigate({ to: result !== "timeout" && result.data.session ? "/app/dashboard" : "/login", replace: true });
     }, 3000);
 
     return () => window.clearTimeout(timeout);
