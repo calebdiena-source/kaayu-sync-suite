@@ -415,10 +415,17 @@ function EventDialog({ open, onOpenChange, event, userId, onSaved }: {
   }, [open, event]);
 
   const save = async () => {
-    if (!userId || !title || !date || !start) { toast.error("Titre, date et heure requis"); return; }
-    const startIso = new Date(`${date}T${start}:00`).toISOString();
-    const endIso = end ? new Date(`${date}T${end}:00`).toISOString() : null;
-    const payload = { user_id: userId, title, description: description || null, start_at: startIso, end_at: endIso, color, reminder_minutes: reminder };
+    if (!userId) return;
+    if (!title.trim()) { toast.error("Veuillez saisir un titre"); return; }
+    if (!date) { toast.error("Veuillez choisir une date"); return; }
+    if (!start) { toast.error("Veuillez choisir une heure de début"); return; }
+    const startDate = new Date(`${date}T${start}:00`);
+    if (isNaN(startDate.getTime())) { toast.error("Date ou heure invalide"); return; }
+    // Auto-fill end = start + 1h if not provided
+    const endDate = end ? new Date(`${date}T${end}:00`) : new Date(startDate.getTime() + 60 * 60 * 1000);
+    const startIso = startDate.toISOString();
+    const endIso = endDate.toISOString();
+    const payload = { user_id: userId, title: title.trim(), description: description || null, start_at: startIso, end_at: endIso, color, reminder_minutes: reminder };
     if (event) {
       const { error } = await supabase.from("calendar_events").update(payload).eq("id", event.id);
       if (error) { toast.error(error.message); return; }
@@ -435,11 +442,23 @@ function EventDialog({ open, onOpenChange, event, userId, onSaved }: {
       <DialogContent>
         <DialogHeader><DialogTitle>{event ? "Modifier l'événement" : "Nouvel événement"}</DialogTitle></DialogHeader>
         <div className="space-y-3">
-          <Input placeholder="Titre" value={title} onChange={(e) => setTitle(e.target.value)} />
-          <div className="grid grid-cols-3 gap-2">
-            <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-            <Input type="time" value={start} onChange={(e) => setStart(e.target.value)} />
-            <Input type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
+          <div className="space-y-1">
+            <label className="text-xs text-muted-foreground">Titre</label>
+            <Input placeholder="Ex: Réunion équipe" value={title} onChange={(e) => setTitle(e.target.value)} />
+          </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Date</label>
+              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Début</label>
+              <Input type="time" value={start} onChange={(e) => setStart(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-xs text-muted-foreground">Fin <span className="opacity-60">(auto)</span></label>
+              <Input type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
+            </div>
           </div>
           <Textarea placeholder="Description" value={description} onChange={(e) => setDescription(e.target.value)} />
           <div className="flex items-center gap-2">
