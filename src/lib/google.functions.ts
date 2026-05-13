@@ -3,22 +3,16 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { getRequestHost, getRequestHeader } from "@tanstack/react-start/server";
 import { buildAuthUrl, pushEvent, deleteEvent } from "./google-calendar.server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
+import { GOOGLE_OAUTH_ORIGINS } from "./google-oauth-config";
 
 // Use STABLE Lovable URLs so Google Cloud Console only needs to be configured once.
 // These never change, even if the project is renamed or republished.
-const PROJECT_ID = "3479a160-96fa-4b26-ae79-16c6abaa3b14";
-const STABLE_PROD = `https://project--${PROJECT_ID}.lovable.app`;
-const STABLE_DEV = `https://project--${PROJECT_ID}-dev.lovable.app`;
-export const GOOGLE_REDIRECT_URIS = {
-  production: `${STABLE_PROD}/api/public/google/callback`,
-  preview: `${STABLE_DEV}/api/public/google/callback`,
-};
 
 function originFromRequest() {
   const host = getRequestHost() ?? "";
   // Anything that isn't the published prod host is treated as preview/dev.
   const isDev = host.includes("preview") || host.includes("-dev") || host.includes("localhost");
-  return isDev ? STABLE_DEV : STABLE_PROD;
+  return isDev ? GOOGLE_OAUTH_ORIGINS.preview : GOOGLE_OAUTH_ORIGINS.production;
 }
 
 export const startGoogleConnect = createServerFn({ method: "POST" })
@@ -29,7 +23,10 @@ export const startGoogleConnect = createServerFn({ method: "POST" })
     // state = userId (signed via random nonce stored)
     const state = `${context.userId}.${crypto.randomUUID()}`;
     await supabaseAdmin.from("activity_logs").insert({
-      user_id: context.userId, action: "google_oauth_start", entity: "google", metadata: { state, redirect_uri: redirectUri },
+      user_id: context.userId,
+      action: "google_oauth_start",
+      entity: "google",
+      metadata: { state, redirect_uri: redirectUri },
     });
     return { url: buildAuthUrl(origin, state), redirectUri };
   });
