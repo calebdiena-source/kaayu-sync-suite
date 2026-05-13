@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from "@tanstack/react-router";
 import {
-  LayoutDashboard, FolderOpen, Users2, CalendarDays, ListTodo,
-  Settings, LogOut, Sparkles, ScanLine, Cloud, Menu, X, Sun, Moon, FileBarChart
+  LayoutDashboard, FolderOpen, Users2, CalendarDays,
+  Settings, LogOut, ScanLine, Cloud, Menu, X, Sun, Moon, FileBarChart
 } from "lucide-react";
 import { NotificationsPopover } from "@/components/notifications-popover";
 import { useEffect, useState } from "react";
