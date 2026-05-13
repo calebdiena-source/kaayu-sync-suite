@@ -72,7 +72,7 @@ function DocsPage() {
   const load = async () => {
     if (!user) return;
     const [{ data: f }, { data: d }, drv] = await Promise.all([
-      supabase.from("folders").select("*").eq("user_id", user.id).order("name"),
+      supabase.from("folders").select("*").eq("user_id", user.id).eq("kind", "document").order("name"),
       supabase.from("documents").select("*").order("created_at", { ascending: false }),
       checkDrive().catch(() => ({ available: false })),
     ]);
