@@ -25,23 +25,62 @@ function LoginPage() {
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
     setLoading(true);
     try {
       if (mode === "signup") {
-        const { error } = await supabase.auth.signUp({
-          email, password,
-          options: { data: { full_name: name }, emailRedirectTo: `${window.location.origin}/app` },
+        const { data, error } = await supabase.auth.signUp({
+          email: email.trim(),
+          password,
+          options: {
+            data: { full_name: name },
+            emailRedirectTo: `${window.location.origin}/login`,
+          },
         });
         if (error) throw error;
-        toast.success("Compte créé ! Vous êtes connecté.");
+        if (!data.session) {
+          toast.success("Compte créé. Vérifiez votre boîte mail pour confirmer votre adresse.");
+          setMode("login");
+          setPassword("");
+          return;
+        }
+        toast.success("Compte créé !");
+        navigate({ to: "/app/dashboard" });
       } else {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password,
+        });
+        if (error) {
+          if (error.message.toLowerCase().includes("invalid login")) {
+            throw new Error("E-mail ou mot de passe incorrect");
+          }
+          if (error.message.toLowerCase().includes("email not confirmed")) {
+            throw new Error("E-mail non confirmé. Vérifiez votre boîte mail.");
+          }
+          throw error;
+        }
+        if (!data.session) throw new Error("Session non créée. Réessayez.");
+        navigate({ to: "/app/dashboard" });
       }
-      navigate({ to: "/app/dashboard" });
-    } catch (err: any) {
-      toast.error(err.message || "Erreur");
-    } finally { setLoading(false); }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Erreur de connexion";
+      toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetPassword = async () => {
+    if (!email.trim()) {
+      toast.error("Saisissez votre e-mail puis cliquez à nouveau");
+      return;
+    }
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: `${window.location.origin}/reset-password`,
+    });
+    if (error) toast.error(error.message);
+    else toast.success("E-mail de réinitialisation envoyé");
   };
 
   return (
@@ -95,6 +134,11 @@ function LoginPage() {
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {mode === "login" ? "Se connecter" : "Créer le compte"}
             </Button>
+            {mode === "login" && (
+              <button type="button" onClick={resetPassword} className="block w-full text-right text-xs text-muted-foreground hover:text-foreground">
+                Mot de passe oublié ?
+              </button>
+            )}
           </form>
 
           <div className="my-6 flex items-center gap-3">
