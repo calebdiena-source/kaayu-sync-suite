@@ -5,31 +5,53 @@ import { buildAuthUrl, pushEvent, deleteEvent } from "./google-calendar.server";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { GOOGLE_OAUTH_ORIGINS } from "./google-oauth-config";
 
-// Use STABLE Lovable URLs so Google Cloud Console only needs to be configured once.
-// These never change, even if the project is renamed or republished.
+// The redirect_uri sent to Google MUST be one of the stable Lovable URLs
+// registered in Google Cloud Console. The user-facing origin (custom domain
+// or published *.lovable.app) is encoded inside `state` so the callback can
+// redirect the browser back to the page the user actually came from.
 
-function originFromRequest() {
+function stableOriginFromRequest() {
   const host = getRequestHost() ?? "";
-  // Anything that isn't the published prod host is treated as preview/dev.
-  const isDev = host.includes("preview") || host.includes("-dev") || host.includes("localhost");
+  const isDev = host.includes("-dev") || host.includes("preview") || host.includes("localhost");
   return isDev ? GOOGLE_OAUTH_ORIGINS.preview : GOOGLE_OAUTH_ORIGINS.production;
+}
+
+function userFacingOriginFromRequest(): string {
+  const origin = getRequestHeader("origin");
+  if (origin) return origin;
+  const referer = getRequestHeader("referer");
+  if (referer) {
+    try {
+      const u = new URL(referer);
+      return `${u.protocol}//${u.host}`;
+    } catch {
+      /* ignore */
+    }
+  }
+  const host = getRequestHost();
+  return host ? `https://${host}` : stableOriginFromRequest();
+}
+
+function encodeState(userId: string, returnTo: string) {
+  const payload = JSON.stringify({ u: userId, o: returnTo, n: crypto.randomUUID() });
+  return Buffer.from(payload).toString("base64url");
 }
 
 export const startGoogleConnect = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const origin = originFromRequest();
-    const redirectUri = `${origin}/api/public/google/callback`;
-    // state = userId (signed via random nonce stored)
-    const state = `${context.userId}.${crypto.randomUUID()}`;
+    const stableOrigin = stableOriginFromRequest();
+    const returnOrigin = userFacingOriginFromRequest();
+    const redirectUri = `${stableOrigin}/api/public/google/callback`;
+    const state = encodeState(context.userId, returnOrigin);
     await supabaseAdmin.from("activity_logs").insert({
       user_id: context.userId,
       action: "google_oauth_start",
       entity: "google",
-      metadata: { state, redirect_uri: redirectUri },
+      metadata: { state, redirect_uri: redirectUri, return_origin: returnOrigin },
     });
     return {
-      url: buildAuthUrl(origin, state),
+      url: buildAuthUrl(stableOrigin, state),
       redirectUri,
     };
   });
