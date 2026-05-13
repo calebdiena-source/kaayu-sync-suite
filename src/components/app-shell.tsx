@@ -54,8 +54,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     localStorage.setItem("theme", next ? "dark" : "light");
   };
 
-  if (loading || !user) {
+  if (loading) {
     return <div className="flex min-h-screen items-center justify-center text-muted-foreground">Chargement…</div>;
+  }
+  if (!user) {
+    // useEffect above will navigate to /login; render nothing meanwhile.
+    return null;
   }
 
   return (
