@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -51,6 +51,7 @@ type HistoryItem = { id: string; month: string; created_at: string; stats: Stats
 
 function ReportsPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [month, setMonth] = useState(currentMonth());
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -94,7 +95,13 @@ function ReportsPage() {
           .insert({ user_id: user.id, month, stats: data.stats, report: data.report })
           .select("id")
           .single();
-        if (saved?.id) setActiveId(saved.id);
+        if (saved?.id) {
+          setActiveId(saved.id);
+          loadHistory();
+          toast.success("Rapport généré");
+          navigate({ to: "/app/reports/$id", params: { id: saved.id } });
+          return;
+        }
         loadHistory();
       }
       toast.success("Rapport généré et enregistré");
@@ -111,6 +118,7 @@ function ReportsPage() {
     setStats(h.stats);
     setReport(h.report);
     setActiveId(h.id);
+    navigate({ to: "/app/reports/$id", params: { id: h.id } });
   };
 
   const removeHistory = async (id: string) => {
