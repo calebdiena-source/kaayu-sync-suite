@@ -1,8 +1,9 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { Upload, FileText, Search, Trash2, Download, Folder, FolderPlus, StickyNote, FileDown, Share2, Users } from "lucide-react";
+import { Upload, FileText, Search, Trash2, Download, Folder, FolderPlus, StickyNote, FileDown, Share2, Users, HardDrive } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -10,14 +11,40 @@ import { toast } from "sonner";
 import { exportRowsToCSV, exportRowsToPDF } from "@/lib/exports";
 import { ShareDocumentDialog } from "@/components/share-document-dialog";
 import { buildRateHeaderText, fetchLatestRates } from "@/lib/rate-header";
+import { driveAvailable, uploadDocumentToDrive, downloadDocumentFromDrive, deleteDocumentFromDrive } from "@/lib/drive.functions";
 
 export const Route = createFileRoute("/app/documents")({
   head: () => ({ meta: [{ title: "Documents — Kaayu" }] }),
   component: DocsPage,
 });
 
-type Doc = { id: string; name: string; storage_path: string; mime_type: string | null; size_bytes: number | null; created_at: string; folder_id: string | null; user_id: string };
+type Doc = { id: string; name: string; storage_path: string; mime_type: string | null; size_bytes: number | null; created_at: string; folder_id: string | null; user_id: string; storage_provider?: string | null; google_file_id?: string | null };
 type Folder = { id: string; name: string };
+
+function fileToB64(file: File): Promise<string> {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onerror = () => rej(r.error);
+    r.onload = () => {
+      const s = String(r.result || "");
+      const i = s.indexOf(",");
+      res(i >= 0 ? s.slice(i + 1) : s);
+    };
+    r.readAsDataURL(file);
+  });
+}
+
+function downloadB64(name: string, mimeType: string, b64: string) {
+  const bin = atob(b64);
+  const buf = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+  const url = URL.createObjectURL(new Blob([buf], { type: mimeType }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
 function DocsPage() {
   const { user } = useAuth();
@@ -34,15 +61,23 @@ function DocsPage() {
   const [noteOpen, setNoteOpen] = useState(false);
   const [noteName, setNoteName] = useState("");
   const [creatingNote, setCreatingNote] = useState(false);
+  const [useDrive, setUseDrive] = useState(false);
+
+  const checkDrive = useServerFn(driveAvailable);
+  const uploadDrive = useServerFn(uploadDocumentToDrive);
+  const downloadDrive = useServerFn(downloadDocumentFromDrive);
+  const deleteDrive = useServerFn(deleteDocumentFromDrive);
 
   const load = async () => {
     if (!user) return;
-    const [{ data: f }, { data: d }] = await Promise.all([
+    const [{ data: f }, { data: d }, drv] = await Promise.all([
       supabase.from("folders").select("*").eq("user_id", user.id).order("name"),
       supabase.from("documents").select("*").order("created_at", { ascending: false }),
+      checkDrive().catch(() => ({ available: false })),
     ]);
     setFolders(f ?? []);
     setDocs(d ?? []);
+    setUseDrive(!!drv?.available);
   };
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [user?.id]);
@@ -54,6 +89,11 @@ function DocsPage() {
       const rates = await fetchLatestRates();
       const headerText = buildRateHeaderText(rates);
       for (const file of Array.from(files)) {
+        if (useDrive) {
+          const dataB64 = await fileToB64(file);
+          await uploadDrive({ data: { name: file.name, mimeType: file.type || "application/octet-stream", dataB64, folderId } });
+          continue;
+        }
         const path = `${user.id}/${Date.now()}-${file.name}`;
         const { error: upErr } = await supabase.storage.from("documents").upload(path, file);
         if (upErr) throw upErr;
@@ -62,14 +102,13 @@ function DocsPage() {
           mime_type: file.type, size_bytes: file.size, folder_id: folderId,
         }).select().single();
         if (dbErr) throw dbErr;
-        // Persist the rate-of-the-day header for AI monthly reports
         await supabase.from("document_versions").insert({
           document_id: docRow.id, version_number: 1, storage_path: path,
           size_bytes: file.size, mime_type: file.type, created_by: user.id,
           comment: headerText,
         });
       }
-      toast.success("Fichier(s) téléversé(s)");
+      toast.success(useDrive ? "Téléversé sur Google Drive" : "Fichier(s) téléversé(s)");
       load();
     } catch (e: any) { toast.error(e.message); }
     finally { setUploading(false); if (fileRef.current) fileRef.current.value = ""; }
@@ -84,15 +123,28 @@ function DocsPage() {
 
   const remove = async (d: Doc) => {
     if (!confirm(`Supprimer "${d.name}" ?`)) return;
-    await supabase.storage.from("documents").remove([d.storage_path]);
-    await supabase.from("documents").delete().eq("id", d.id);
-    toast.success("Supprimé"); load();
+    try {
+      if (d.storage_provider === "drive" && d.google_file_id) {
+        await deleteDrive({ data: { fileId: d.google_file_id } });
+      } else {
+        await supabase.storage.from("documents").remove([d.storage_path]);
+      }
+      await supabase.from("documents").delete().eq("id", d.id);
+      toast.success("Supprimé"); load();
+    } catch (e: any) { toast.error(e.message); }
   };
 
   const download = async (d: Doc) => {
-    const { data, error } = await supabase.storage.from("documents").createSignedUrl(d.storage_path, 60);
-    if (error) return toast.error(error.message);
-    window.open(data.signedUrl, "_blank");
+    try {
+      if (d.storage_provider === "drive") {
+        const r = await downloadDrive({ data: { documentId: d.id } });
+        downloadB64(r.name, r.mimeType, r.dataB64);
+        return;
+      }
+      const { data, error } = await supabase.storage.from("documents").createSignedUrl(d.storage_path, 60);
+      if (error) return toast.error(error.message);
+      window.open(data.signedUrl, "_blank");
+    } catch (e: any) { toast.error(e.message); }
   };
 
   const submitNote = () => {
@@ -127,7 +179,9 @@ function DocsPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold tracking-tight">Documents</h2>
-          <p className="text-sm text-muted-foreground">Stockage cloud sécurisé · {docs.length} fichier(s)</p>
+          <p className="flex items-center gap-2 text-sm text-muted-foreground">
+            {useDrive ? (<><HardDrive className="h-3.5 w-3.5 text-primary" /> Google Drive connecté</>) : "Stockage cloud sécurisé"} · {docs.length} fichier(s)
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={() => exportList("csv")}><FileDown className="mr-1 h-4 w-4" />CSV</Button>
