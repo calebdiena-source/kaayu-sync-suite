@@ -8,13 +8,18 @@ import { Trash2, UserPlus } from "lucide-react";
 
 type Profile = { id: string; full_name: string | null };
 type Share = { id: string; shared_with_user_id: string; permission: string };
+type Permission = "read" | "write";
+
+function toPermission(value: string): Permission {
+  return value === "write" ? "write" : "read";
+}
 
 export function ShareDocumentDialog({ open, onOpenChange, documentId }: { open: boolean; onOpenChange: (v: boolean) => void; documentId: string }) {
   const { user } = useAuth();
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [shares, setShares] = useState<Share[]>([]);
   const [selected, setSelected] = useState<string>("");
-  const [permission, setPermission] = useState<"read" | "write">("read");
+  const [permission, setPermission] = useState<Permission>("read");
   const [search, setSearch] = useState("");
 
   const load = async () => {
@@ -62,7 +67,7 @@ export function ShareDocumentDialog({ open, onOpenChange, documentId }: { open: 
             </div>
           </div>
           <div className="flex gap-2">
-            <select value={permission} onChange={(e) => setPermission(e.target.value as any)} className="rounded-md border bg-background px-3 py-2 text-sm">
+            <select value={permission} onChange={(e) => setPermission(toPermission(e.target.value))} className="rounded-md border bg-background px-3 py-2 text-sm">
               <option value="read">Lecture</option>
               <option value="write">Écriture</option>
             </select>
