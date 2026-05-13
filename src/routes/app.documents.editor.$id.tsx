@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, Save, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { RichTextEditor } from "@/components/rich-text-editor";
-import mammoth from "mammoth/mammoth.browser";
 import { Document, Packer, Paragraph, HeadingLevel, TextRun } from "docx";
 import {
   buildRateHeaderHtml,
@@ -135,6 +134,7 @@ function DocumentEditor() {
           if (isDocx) {
             try {
               const arrayBuffer = await blob.arrayBuffer();
+              const mammoth = (await import("mammoth/mammoth.browser")).default;
               const { value } = await mammoth.convertToHtml({ arrayBuffer });
               setHtml(value || "<p></p>");
             } catch (e: any) {
