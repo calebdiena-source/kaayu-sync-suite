@@ -259,7 +259,17 @@ function PlannerPage() {
         onSaved={async (id, deleted) => {
           await load();
           setEvOpen(false);
-          if (!deleted && id) { try { await syncEv({ data: { eventId: id } }); toast.success("Synchronisé avec Google"); } catch { /* ignore */ } }
+          if (!deleted && id) {
+            try { await syncEv({ data: { eventId: id } }); toast.success("Synchronisé avec Google Calendar"); }
+            catch (e) {
+              const msg = e instanceof Error ? e.message : String(e);
+              if (msg.includes("insufficient") || msg.includes("PERMISSION_DENIED") || msg.includes("403")) {
+                toast.error("Autorisation Google Calendar manquante. Allez dans Paramètres → déconnectez puis reconnectez Google en cochant l'accès au calendrier.");
+              } else {
+                toast.error("Échec de la synchronisation Google : " + msg);
+              }
+            }
+          }
         }}
       />
 
@@ -272,7 +282,17 @@ function PlannerPage() {
         onSaved={async (id) => {
           await load();
           setTaskOpen(false);
-          if (id) { try { await syncTask({ data: { taskId: id } }); toast.success("Synchronisé avec Google"); } catch { /* ignore */ } }
+          if (id) {
+            try { await syncTask({ data: { taskId: id } }); toast.success("Synchronisé avec Google Calendar"); }
+            catch (e) {
+              const msg = e instanceof Error ? e.message : String(e);
+              if (msg.includes("insufficient") || msg.includes("PERMISSION_DENIED") || msg.includes("403")) {
+                toast.error("Autorisation Google Calendar manquante. Allez dans Paramètres → déconnectez puis reconnectez Google.");
+              } else {
+                toast.error("Échec sync : " + msg);
+              }
+            }
+          }
         }}
       />
     </div>
