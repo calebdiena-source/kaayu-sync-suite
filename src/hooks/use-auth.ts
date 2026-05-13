@@ -37,10 +37,18 @@ export function useAuth() {
     });
 
     // 2) Then fetch the current session (restored from storage).
-    supabase.auth.getSession().then(({ data }) => apply(data.session));
+    supabase.auth.getSession()
+      .then(({ data }) => apply(data.session))
+      .catch(() => apply(null));
+
+    // 3) Safety net: never block UI more than 2s on auth restore.
+    const t = setTimeout(() => {
+      if (active) setLoading(false);
+    }, 2000);
 
     return () => {
       active = false;
+      clearTimeout(t);
       sub.subscription.unsubscribe();
     };
   }, []);

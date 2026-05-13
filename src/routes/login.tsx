@@ -159,6 +159,9 @@ function LoginPage() {
                   redirect_uri: `${window.location.origin}/app/dashboard`,
                 });
                 if (result.error) throw result.error;
+                if (result.redirected) return;
+                // Tokens received and session set — go to dashboard.
+                navigate({ to: "/app/dashboard" });
               } catch (err: any) {
                 toast.error(err?.message || "Erreur Google");
                 setLoading(false);
