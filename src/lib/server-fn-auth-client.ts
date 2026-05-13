@@ -1,8 +1,14 @@
 // Attaches the Supabase JWT to every TanStack server-fn request.
 import { supabase } from "@/integrations/supabase/client";
 
-if (typeof window !== "undefined" && !(window as any).__lovableServerFnFetchPatched) {
-  (window as any).__lovableServerFnFetchPatched = true;
+declare global {
+  interface Window {
+    __lovableServerFnFetchPatched?: boolean;
+  }
+}
+
+if (typeof window !== "undefined" && !window.__lovableServerFnFetchPatched) {
+  window.__lovableServerFnFetchPatched = true;
   const originalFetch = window.fetch.bind(window);
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     try {
@@ -17,7 +23,7 @@ if (typeof window !== "undefined" && !(window as any).__lovableServerFnFetchPatc
         }
       }
     } catch { /* fall through to plain fetch */ }
-    return originalFetch(input as any, init);
+    return originalFetch(input, init);
   };
 }
 
