@@ -191,20 +191,33 @@ function OcrPage() {
         </div>
 
         <div className="rounded-xl border bg-card p-4">
-          <div className="mb-2 flex items-center justify-between gap-2">
+          <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-sm font-semibold"><Sparkles className="h-4 w-4 text-primary" /> Résultat IA</div>
             {result && (
-              <div className="flex gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                  {savingNote ? (<><Loader2 className="h-3 w-3 animate-spin" /> Enregistrement…</>) : savedAt ? (<><Check className="h-3 w-3 text-emerald-500" /> Enregistré dans Notes</>) : null}
+                </span>
+                {noteId && (
+                  <Button asChild size="sm" variant="ghost"><Link to="/app/notes/$id" params={{ id: noteId }}><NotebookPen className="mr-1.5 h-3.5 w-3.5" />Ouvrir la note</Link></Button>
+                )}
                 <Button size="sm" variant="outline" onClick={exportTxt}><FileDown className="mr-1.5 h-3.5 w-3.5" />.txt</Button>
                 <Button size="sm" onClick={exportDocx}><FileDown className="mr-1.5 h-3.5 w-3.5" />.docx</Button>
               </div>
             )}
           </div>
-          <div className="min-h-[20rem] whitespace-pre-wrap rounded-md border bg-background p-3 text-sm">
-            {loading || scanning ? (
-              <div className="flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Traitement IA…</div>
-            ) : (result || <span className="text-muted-foreground">Le résultat apparaîtra ici.</span>)}
-          </div>
+          {loading || scanning ? (
+            <div className="flex min-h-[20rem] items-center gap-2 rounded-md border bg-background p-3 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Traitement IA…</div>
+          ) : result ? (
+            <textarea
+              value={result}
+              onChange={(e) => setResult(e.target.value)}
+              rows={14}
+              className="w-full rounded-md border bg-background p-3 text-sm"
+            />
+          ) : (
+            <div className="min-h-[20rem] rounded-md border bg-background p-3 text-sm text-muted-foreground">Le résultat apparaîtra ici.</div>
+          )}
         </div>
       </div>
     </div>
