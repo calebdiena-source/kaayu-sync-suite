@@ -13,7 +13,7 @@ import { AIAssistant } from "@/components/ai-assistant";
 import { useOnlineStatus } from "@/hooks/use-online-status";
 
 const NAV = [
-  { to: "/app", label: "Tableau de bord", icon: LayoutDashboard },
+  { to: "/app/dashboard", label: "Tableau de bord", icon: LayoutDashboard },
   { to: "/app/documents", label: "Documents", icon: FolderOpen },
   { to: "/app/meetings", label: "Réunions", icon: Users2 },
   { to: "/app/calendar", label: "Calendrier", icon: CalendarDays },
@@ -72,7 +72,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <nav className="flex flex-col gap-0.5 p-3">
           {NAV.map((item) => {
             const Icon = item.icon;
-            const active = location.pathname === item.to || (item.to !== "/app" && location.pathname.startsWith(item.to));
+            const active = location.pathname === item.to || location.pathname.startsWith(item.to);
             return (
               <Link
                 key={item.to}
