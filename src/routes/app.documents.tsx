@@ -3,10 +3,11 @@ import { useEffect, useRef, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { Upload, FileText, Search, Trash2, Download, Folder, FolderPlus, StickyNote, FileDown, Share2, Users, HardDrive } from "lucide-react";
+import { Upload, FileText, Search, Trash2, Download, Folder, FolderPlus, StickyNote, FileDown, Share2, Users, HardDrive, FolderInput } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { exportRowsToCSV, exportRowsToPDF } from "@/lib/exports";
 import { ShareDocumentDialog } from "@/components/share-document-dialog";
@@ -71,7 +72,7 @@ function DocsPage() {
   const load = async () => {
     if (!user) return;
     const [{ data: f }, { data: d }, drv] = await Promise.all([
-      supabase.from("folders").select("*").eq("user_id", user.id).order("name"),
+      supabase.from("folders").select("*").eq("user_id", user.id).eq("kind", "document").order("name"),
       supabase.from("documents").select("*").order("created_at", { ascending: false }),
       checkDrive().catch(() => ({ available: false })),
     ]);
@@ -117,8 +118,24 @@ function DocsPage() {
   const createFolder = async () => {
     const name = prompt("Nom du dossier :");
     if (!name || !user) return;
-    const { error } = await supabase.from("folders").insert({ user_id: user.id, name, parent_id: folderId });
+    const { error } = await supabase.from("folders").insert({ user_id: user.id, name, parent_id: folderId, kind: "document" });
     if (error) toast.error(error.message); else { toast.success("Dossier créé"); load(); }
+  };
+
+  const moveDoc = async (d: Doc, targetFolderId: string | null) => {
+    const { error } = await supabase.from("documents").update({ folder_id: targetFolderId }).eq("id", d.id);
+    if (error) return toast.error(error.message);
+    toast.success(targetFolderId ? "Déplacé dans le dossier" : "Retiré du dossier");
+    load();
+  };
+
+  const moveToNewFolder = async (d: Doc) => {
+    if (!user) return;
+    const name = prompt("Nom du nouveau dossier :");
+    if (!name) return;
+    const { data: nf, error } = await supabase.from("folders").insert({ user_id: user.id, name, kind: "document" }).select().single();
+    if (error || !nf) return toast.error(error?.message ?? "Erreur");
+    await moveDoc(d, nf.id);
   };
 
   const remove = async (d: Doc) => {
@@ -234,13 +251,17 @@ function DocsPage() {
               <thead className="bg-muted/50 text-xs uppercase tracking-wider text-muted-foreground">
                 <tr>
                   <th className="px-3 py-2 text-left font-medium">Nom</th>
+                  <th className="px-3 py-2 text-left font-medium">Dossier</th>
                   <th className="px-3 py-2 text-left font-medium">Taille</th>
                   <th className="px-3 py-2 text-left font-medium">Date</th>
                   <th className="px-3 py-2"></th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((d) => (
+                {filtered.map((d) => {
+                  const currentFolder = folders.find((f) => f.id === d.folder_id);
+                  const isOwner = d.user_id === user?.id;
+                  return (
                   <tr
                     key={d.id}
                     className="cursor-pointer border-t hover:bg-muted/30"
@@ -252,19 +273,49 @@ function DocsPage() {
                         <FileText className="h-4 w-4 text-primary" /> {d.name}
                       </Link>
                     </td>
+                    <td className="px-3 py-2 text-muted-foreground">
+                      {currentFolder ? (
+                        <span className="inline-flex items-center gap-1"><Folder className="h-3.5 w-3.5 text-primary" />{currentFolder.name}</span>
+                      ) : "—"}
+                    </td>
                     <td className="px-3 py-2 text-muted-foreground">{d.size_bytes ? `${(d.size_bytes / 1024).toFixed(1)} Ko` : "—"}</td>
                     <td className="px-3 py-2 text-muted-foreground">{new Date(d.created_at).toLocaleString("fr-FR")}</td>
                     <td className="px-3 py-2 text-right">
-                      {d.user_id === user?.id && (
+                      {isOwner && (
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button size="icon" variant="ghost" title="Déplacer vers un dossier"><FolderInput className="h-4 w-4" /></Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-56">
+                            <DropdownMenuLabel>Déplacer vers…</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => moveDoc(d, null)} disabled={!d.folder_id}>
+                              <Folder className="mr-2 h-4 w-4 opacity-50" /> Aucun dossier
+                            </DropdownMenuItem>
+                            {folders.length > 0 && <DropdownMenuSeparator />}
+                            {folders.map((f) => (
+                              <DropdownMenuItem key={f.id} onClick={() => moveDoc(d, f.id)} disabled={d.folder_id === f.id}>
+                                <Folder className="mr-2 h-4 w-4 text-primary" /> {f.name}
+                              </DropdownMenuItem>
+                            ))}
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => moveToNewFolder(d)}>
+                              <FolderPlus className="mr-2 h-4 w-4" /> Nouveau dossier…
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      )}
+                      {isOwner && (
                         <Button size="icon" variant="ghost" onClick={() => setShareDocId(d.id)}><Share2 className="h-4 w-4" /></Button>
                       )}
                       <Button size="icon" variant="ghost" onClick={() => download(d)}><Download className="h-4 w-4" /></Button>
-                      {d.user_id === user?.id && (
+                      {isOwner && (
                         <Button size="icon" variant="ghost" onClick={() => remove(d)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                       )}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           )}
