@@ -197,11 +197,13 @@ export type Database = {
           category: string | null
           created_at: string
           folder_id: string | null
+          google_file_id: string | null
           id: string
           mime_type: string | null
           name: string
           size_bytes: number | null
           storage_path: string
+          storage_provider: string
           tags: string[] | null
           updated_at: string
           user_id: string
@@ -210,11 +212,13 @@ export type Database = {
           category?: string | null
           created_at?: string
           folder_id?: string | null
+          google_file_id?: string | null
           id?: string
           mime_type?: string | null
           name: string
           size_bytes?: number | null
           storage_path: string
+          storage_provider?: string
           tags?: string[] | null
           updated_at?: string
           user_id: string
@@ -223,11 +227,13 @@ export type Database = {
           category?: string | null
           created_at?: string
           folder_id?: string | null
+          google_file_id?: string | null
           id?: string
           mime_type?: string | null
           name?: string
           size_bytes?: number | null
           storage_path?: string
+          storage_provider?: string
           tags?: string[] | null
           updated_at?: string
           user_id?: string
