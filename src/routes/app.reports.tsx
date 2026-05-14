@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { FileBarChart, Loader2, Download, Sparkles, History, Trash2, FileText } from "lucide-react";
+import { FileBarChart, Loader2, Download, Sparkles, History, Trash2, FileText, Pencil } from "lucide-react";
 import {
   Document,
   Packer,
@@ -119,8 +119,7 @@ function ReportsPage() {
       if (data?.error) throw new Error(data.error);
       setStats(data.stats);
       setReport(data.report);
-      // Brouillon : on stocke en sessionStorage et on ouvre l'éditeur
-      // L'utilisateur pourra relire/modifier puis enregistrer.
+      // On garde un brouillon en sessionStorage pour permettre l'ouverture dans l'éditeur
       try {
         sessionStorage.setItem(
           "kaayu:report:draft",
@@ -129,9 +128,7 @@ function ReportsPage() {
       } catch {
         // ignore
       }
-      toast.success("Rapport généré — relisez et enregistrez");
-      navigate({ to: "/app/reports/$id", params: { id: "new" } });
-      return;
+      toast.success("Rapport généré — cliquez sur « Ouvrir dans l'éditeur » pour l'enregistrer");
     } catch (e: any) {
       console.error(e);
       toast.error(e?.message || "Échec de la génération");
@@ -365,6 +362,16 @@ function ReportsPage() {
           </Button>
           {report && stats && (
             <>
+              <Button
+                onClick={() =>
+                  navigate({
+                    to: "/app/reports/$id",
+                    params: { id: activeId ?? "new" },
+                  })
+                }
+              >
+                <Pencil className="mr-2 h-4 w-4" /> Ouvrir dans l'éditeur
+              </Button>
               <Button variant="outline" onClick={() => exportDocx(report, stats, month)}>
                 <Download className="mr-2 h-4 w-4" /> .docx
               </Button>
@@ -382,21 +389,20 @@ function ReportsPage() {
             <History className="h-4 w-4" /> Historique des rapports
           </h2>
           <div className="flex items-center gap-2">
-            <input
-              type="month"
+            <select
               value={filterMonth}
               onChange={(e) => setFilterMonth(e.target.value)}
               className="rounded-md border bg-background px-2 py-1 text-xs"
-              placeholder="Filtrer"
-            />
-            {filterMonth && (
-              <button
-                onClick={() => setFilterMonth("")}
-                className="text-xs text-muted-foreground hover:text-foreground"
-              >
-                Effacer
-              </button>
-            )}
+            >
+              <option value="">Tous les rapports</option>
+              {Array.from(new Set(history.map((h) => h.month)))
+                .sort((a, b) => b.localeCompare(a))
+                .map((mo) => (
+                  <option key={mo} value={mo}>
+                    {monthLabelOf(mo)}
+                  </option>
+                ))}
+            </select>
           </div>
         </header>
         {filteredHistory.length === 0 ? (
