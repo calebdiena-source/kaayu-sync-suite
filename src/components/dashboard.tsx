@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import {
@@ -9,6 +10,7 @@ import {
   CalendarDays,
   HardDrive,
   Clock,
+  History,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -95,7 +97,7 @@ export function Dashboard() {
       .from("exchange_rates")
       .select("*")
       .order("rate_date", { ascending: false })
-      .limit(8);
+      .limit(3);
     const todays = (r ?? []).find((x) => x.rate_date === today());
     setRate(todays ?? { rate_date: today(), usd_to_fc: null, eur_to_usd: null, chf_to_usd: null });
     setHistory(r ?? []);
@@ -224,6 +226,15 @@ export function Dashboard() {
             </table>
           </div>
         )}
+
+        <div className="mt-4 flex justify-end">
+          <Link
+            to="/app/rates-history"
+            className="inline-flex items-center gap-2 rounded-md border bg-card px-3 py-1.5 text-xs font-medium hover:bg-muted"
+          >
+            <History className="h-3.5 w-3.5" /> Voir l'historique complet
+          </Link>
+        </div>
       </section>
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

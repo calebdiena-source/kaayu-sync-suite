@@ -17,6 +17,7 @@ import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as AppTasksRouteImport } from './routes/app.tasks'
 import { Route as AppSettingsRouteImport } from './routes/app.settings'
 import { Route as AppReportsRouteImport } from './routes/app.reports'
+import { Route as AppRatesHistoryRouteImport } from './routes/app.rates-history'
 import { Route as AppPlannerRouteImport } from './routes/app.planner'
 import { Route as AppOcrRouteImport } from './routes/app.ocr'
 import { Route as AppNotesRouteImport } from './routes/app.notes'
@@ -69,6 +70,11 @@ const AppSettingsRoute = AppSettingsRouteImport.update({
 const AppReportsRoute = AppReportsRouteImport.update({
   id: '/reports',
   path: '/reports',
+  getParentRoute: () => AppRoute,
+} as any)
+const AppRatesHistoryRoute = AppRatesHistoryRouteImport.update({
+  id: '/rates-history',
+  path: '/rates-history',
   getParentRoute: () => AppRoute,
 } as any)
 const AppPlannerRoute = AppPlannerRouteImport.update({
@@ -150,6 +156,7 @@ export interface FileRoutesByFullPath {
   '/app/notes': typeof AppNotesRouteWithChildren
   '/app/ocr': typeof AppOcrRoute
   '/app/planner': typeof AppPlannerRoute
+  '/app/rates-history': typeof AppRatesHistoryRoute
   '/app/reports': typeof AppReportsRouteWithChildren
   '/app/settings': typeof AppSettingsRoute
   '/app/tasks': typeof AppTasksRoute
@@ -172,6 +179,7 @@ export interface FileRoutesByTo {
   '/app/notes': typeof AppNotesRouteWithChildren
   '/app/ocr': typeof AppOcrRoute
   '/app/planner': typeof AppPlannerRoute
+  '/app/rates-history': typeof AppRatesHistoryRoute
   '/app/reports': typeof AppReportsRouteWithChildren
   '/app/settings': typeof AppSettingsRoute
   '/app/tasks': typeof AppTasksRoute
@@ -196,6 +204,7 @@ export interface FileRoutesById {
   '/app/notes': typeof AppNotesRouteWithChildren
   '/app/ocr': typeof AppOcrRoute
   '/app/planner': typeof AppPlannerRoute
+  '/app/rates-history': typeof AppRatesHistoryRoute
   '/app/reports': typeof AppReportsRouteWithChildren
   '/app/settings': typeof AppSettingsRoute
   '/app/tasks': typeof AppTasksRoute
@@ -221,6 +230,7 @@ export interface FileRouteTypes {
     | '/app/notes'
     | '/app/ocr'
     | '/app/planner'
+    | '/app/rates-history'
     | '/app/reports'
     | '/app/settings'
     | '/app/tasks'
@@ -243,6 +253,7 @@ export interface FileRouteTypes {
     | '/app/notes'
     | '/app/ocr'
     | '/app/planner'
+    | '/app/rates-history'
     | '/app/reports'
     | '/app/settings'
     | '/app/tasks'
@@ -266,6 +277,7 @@ export interface FileRouteTypes {
     | '/app/notes'
     | '/app/ocr'
     | '/app/planner'
+    | '/app/rates-history'
     | '/app/reports'
     | '/app/settings'
     | '/app/tasks'
@@ -341,6 +353,13 @@ declare module '@tanstack/react-router' {
       path: '/reports'
       fullPath: '/app/reports'
       preLoaderRoute: typeof AppReportsRouteImport
+      parentRoute: typeof AppRoute
+    }
+    '/app/rates-history': {
+      id: '/app/rates-history'
+      path: '/rates-history'
+      fullPath: '/app/rates-history'
+      preLoaderRoute: typeof AppRatesHistoryRouteImport
       parentRoute: typeof AppRoute
     }
     '/app/planner': {
@@ -482,6 +501,7 @@ interface AppRouteChildren {
   AppNotesRoute: typeof AppNotesRouteWithChildren
   AppOcrRoute: typeof AppOcrRoute
   AppPlannerRoute: typeof AppPlannerRoute
+  AppRatesHistoryRoute: typeof AppRatesHistoryRoute
   AppReportsRoute: typeof AppReportsRouteWithChildren
   AppSettingsRoute: typeof AppSettingsRoute
   AppTasksRoute: typeof AppTasksRoute
@@ -498,6 +518,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppNotesRoute: AppNotesRouteWithChildren,
   AppOcrRoute: AppOcrRoute,
   AppPlannerRoute: AppPlannerRoute,
+  AppRatesHistoryRoute: AppRatesHistoryRoute,
   AppReportsRoute: AppReportsRouteWithChildren,
   AppSettingsRoute: AppSettingsRoute,
   AppTasksRoute: AppTasksRoute,
