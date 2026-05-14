@@ -1,8 +1,9 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Download, FileText, Loader2 } from "lucide-react";
+import { ArrowLeft, Download, FileText, Save } from "lucide-react";
 import { toast } from "sonner";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import { Document, Packer, Paragraph, HeadingLevel, TextRun } from "docx";
@@ -35,6 +36,7 @@ type Report = {
   rate_analysis: string;
   activity_analysis: string;
   recommendations: string[];
+  html?: string;
 };
 
 export const Route = createFileRoute("/app/reports/$id")({
@@ -210,14 +212,34 @@ function exportPdf(html: string, filename: string) {
 function ReportViewer() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [html, setHtml] = useState<string>("<p></p>");
   const [month, setMonth] = useState<string>("");
+  const [stats, setStats] = useState<Stats | null>(null);
+  const [report, setReport] = useState<Report | null>(null);
+  const isDraft = id === "new";
 
   useEffect(() => {
     let active = true;
     (async () => {
       try {
+        if (isDraft) {
+          const raw = sessionStorage.getItem("kaayu:report:draft");
+          if (!raw) {
+            toast.error("Aucun brouillon trouvé");
+            navigate({ to: "/app/reports" });
+            return;
+          }
+          const draft = JSON.parse(raw) as { month: string; stats: Stats; report: Report };
+          if (!active) return;
+          setMonth(draft.month);
+          setStats(draft.stats);
+          setReport(draft.report);
+          setHtml(draft.report.html || buildHtml(draft.report, draft.stats, draft.month));
+          return;
+        }
         const { data, error } = await supabase
           .from("monthly_reports")
           .select("id,month,stats,report")
@@ -229,8 +251,12 @@ function ReportViewer() {
           navigate({ to: "/app/reports" });
           return;
         }
+        const r = data.report as Report;
+        const s = data.stats as Stats;
         setMonth(data.month);
-        setHtml(buildHtml(data.report as Report, data.stats as Stats, data.month));
+        setStats(s);
+        setReport(r);
+        setHtml(r.html || buildHtml(r, s, data.month));
       } catch (e: any) {
         toast.error(e?.message || "Erreur de chargement");
       } finally {
@@ -240,7 +266,42 @@ function ReportViewer() {
     return () => {
       active = false;
     };
-  }, [id, navigate]);
+  }, [id, navigate, isDraft]);
+
+  const save = async () => {
+    if (!user || !report || !stats || !month) return;
+    setSaving(true);
+    try {
+      // Un seul rapport par mois : on supprime tout rapport existant pour ce mois
+      await supabase
+        .from("monthly_reports")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("month", month);
+      const reportToSave: Report = { ...report, html };
+      const { data: saved, error } = await supabase
+        .from("monthly_reports")
+        .insert({ user_id: user.id, month, stats, report: reportToSave })
+        .select("id")
+        .single();
+      if (error) throw error;
+      if (isDraft) {
+        try {
+          sessionStorage.removeItem("kaayu:report:draft");
+        } catch {
+          // ignore
+        }
+      }
+      toast.success("Rapport enregistré");
+      if (saved?.id && saved.id !== id) {
+        navigate({ to: "/app/reports/$id", params: { id: saved.id }, replace: true });
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Échec de l'enregistrement");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   const baseName = useMemo(() => `rapport-kaayu-${month || "rapport"}`, [month]);
 
@@ -254,8 +315,15 @@ function ReportViewer() {
             <ArrowLeft className="mr-1 h-4 w-4" /> Retour
           </Link>
         </Button>
-        <h1 className="text-lg font-semibold">Rapport — {month ? monthLabelOf(month) : ""}</h1>
-        <div className="ml-auto flex gap-2">
+        <h1 className="text-lg font-semibold">
+          {isDraft ? "Brouillon — " : "Rapport — "}
+          {month ? monthLabelOf(month) : ""}
+        </h1>
+        <div className="ml-auto flex flex-wrap gap-2">
+          <Button size="sm" onClick={save} disabled={saving}>
+            <Save className="mr-1 h-4 w-4" />
+            {saving ? "…" : isDraft ? "Enregistrer" : "Mettre à jour"}
+          </Button>
           <Button variant="outline" size="sm" onClick={() => exportPdf(html, `${baseName}.pdf`)}>
             <FileText className="mr-1 h-4 w-4" /> PDF
           </Button>
@@ -264,6 +332,13 @@ function ReportViewer() {
           </Button>
         </div>
       </div>
+
+      {isDraft && (
+        <div className="rounded-md border border-dashed bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+          Ce rapport n'est pas encore enregistré. Relisez, modifiez si nécessaire, puis cliquez sur
+          « Enregistrer ».
+        </div>
+      )}
 
       <div className="overflow-hidden rounded-xl border bg-card">
         <RichTextEditor value={html} onChange={setHtml} editable placeholder="Rapport mensuel…" />
