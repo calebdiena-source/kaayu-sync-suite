@@ -97,7 +97,7 @@ export function Dashboard() {
       .from("exchange_rates")
       .select("*")
       .order("rate_date", { ascending: false })
-      .limit(8);
+      .limit(3);
     const todays = (r ?? []).find((x) => x.rate_date === today());
     setRate(todays ?? { rate_date: today(), usd_to_fc: null, eur_to_usd: null, chf_to_usd: null });
     setHistory(r ?? []);
