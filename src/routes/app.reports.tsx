@@ -362,6 +362,16 @@ function ReportsPage() {
           </Button>
           {report && stats && (
             <>
+              <Button
+                onClick={() =>
+                  navigate({
+                    to: "/app/reports/$id",
+                    params: { id: activeId ?? "new" },
+                  })
+                }
+              >
+                <Pencil className="mr-2 h-4 w-4" /> Ouvrir dans l'éditeur
+              </Button>
               <Button variant="outline" onClick={() => exportDocx(report, stats, month)}>
                 <Download className="mr-2 h-4 w-4" /> .docx
               </Button>
