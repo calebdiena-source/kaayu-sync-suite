@@ -1,8 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { Plus, Sparkles, Calendar as CalIcon, Loader2, FileDown } from "lucide-react";
+import { Plus, Sparkles, Calendar as CalIcon, Loader2, FileDown, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { exportTextToDOCX, exportTextToPDF } from "@/lib/exports";
