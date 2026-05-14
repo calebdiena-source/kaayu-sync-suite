@@ -476,7 +476,12 @@ function DocsPage() {
                       onDoubleClick={() =>
                         navigate({ to: "/app/documents/editor/$id", params: { id: d.id } })
                       }
-                      title="Double-cliquez pour ouvrir"
+                      onContextMenu={(e) => {
+                        if (!isOwner) return;
+                        e.preventDefault();
+                        renameDoc(d);
+                      }}
+                      title="Double-cliquez pour ouvrir · Clic droit pour renommer"
                     >
                       <td className="px-3 py-2">
                         <Link
