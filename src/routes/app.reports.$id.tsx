@@ -56,13 +56,6 @@ export const Route = createFileRoute("/app/reports/$id")({
   ),
 });
 
-const EMPTY_RATE_STATS: Stats["rates"] = {
-  usd_to_fc: null,
-  eur_to_usd: null,
-  chf_to_usd: null,
-  timeline: [],
-};
-
 function normalizeStats(s: any): Stats {
   return {
     documents: {
