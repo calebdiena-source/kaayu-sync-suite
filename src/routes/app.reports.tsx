@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { FileBarChart, Loader2, Download, Sparkles, History, Trash2, FileText } from "lucide-react";
+import { FileBarChart, Loader2, Download, Sparkles, History, Trash2, FileText, Pencil } from "lucide-react";
 import {
   Document,
   Packer,
