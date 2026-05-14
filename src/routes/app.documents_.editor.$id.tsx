@@ -122,7 +122,17 @@ function DocumentEditor() {
       try {
         if (isNew) {
           const rates = await fetchLatestRates();
-          setHtml(buildRateHeaderHtml(rates) + "<p></p>");
+          let initialBody = "<p></p>";
+          try {
+            const seeded = sessionStorage.getItem("kaayu:editor:initial");
+            if (seeded) {
+              initialBody = seeded;
+              sessionStorage.removeItem("kaayu:editor:initial");
+            }
+          } catch {
+            // ignore
+          }
+          setHtml(buildRateHeaderHtml(rates) + initialBody);
           setLoaded(true);
           return;
         }
