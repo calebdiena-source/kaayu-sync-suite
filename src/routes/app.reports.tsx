@@ -389,21 +389,20 @@ function ReportsPage() {
             <History className="h-4 w-4" /> Historique des rapports
           </h2>
           <div className="flex items-center gap-2">
-            <input
-              type="month"
+            <select
               value={filterMonth}
               onChange={(e) => setFilterMonth(e.target.value)}
               className="rounded-md border bg-background px-2 py-1 text-xs"
-              placeholder="Filtrer"
-            />
-            {filterMonth && (
-              <button
-                onClick={() => setFilterMonth("")}
-                className="text-xs text-muted-foreground hover:text-foreground"
-              >
-                Effacer
-              </button>
-            )}
+            >
+              <option value="">Tous les rapports</option>
+              {Array.from(new Set(history.map((h) => h.month)))
+                .sort((a, b) => b.localeCompare(a))
+                .map((mo) => (
+                  <option key={mo} value={mo}>
+                    {monthLabelOf(mo)}
+                  </option>
+                ))}
+            </select>
           </div>
         </header>
         {filteredHistory.length === 0 ? (
