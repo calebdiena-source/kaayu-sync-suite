@@ -119,8 +119,7 @@ function ReportsPage() {
       if (data?.error) throw new Error(data.error);
       setStats(data.stats);
       setReport(data.report);
-      // Brouillon : on stocke en sessionStorage et on ouvre l'éditeur
-      // L'utilisateur pourra relire/modifier puis enregistrer.
+      // On garde un brouillon en sessionStorage pour permettre l'ouverture dans l'éditeur
       try {
         sessionStorage.setItem(
           "kaayu:report:draft",
@@ -129,9 +128,7 @@ function ReportsPage() {
       } catch {
         // ignore
       }
-      toast.success("Rapport généré — relisez et enregistrez");
-      navigate({ to: "/app/reports/$id", params: { id: "new" } });
-      return;
+      toast.success("Rapport généré — cliquez sur « Ouvrir dans l'éditeur » pour l'enregistrer");
     } catch (e: any) {
       console.error(e);
       toast.error(e?.message || "Échec de la génération");
