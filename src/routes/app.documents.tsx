@@ -35,6 +35,12 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+} from "@/components/ui/context-menu";
 import { toast } from "sonner";
 import { exportRowsToCSV, exportRowsToPDF } from "@/lib/exports";
 import { ShareDocumentDialog } from "@/components/share-document-dialog";
@@ -197,6 +203,41 @@ function DocsPage() {
     if (error) toast.error(error.message);
     else {
       toast.success("Dossier créé");
+      load();
+    }
+  };
+
+  const renameFolder = async (f: Folder) => {
+    const name = prompt("Nouveau nom du dossier :", f.name);
+    if (!name || name === f.name) return;
+    const { error } = await supabase.from("folders").update({ name }).eq("id", f.id);
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Dossier renommé");
+      load();
+    }
+  };
+
+  const deleteFolder = async (f: Folder) => {
+    if (!confirm(`Supprimer le dossier « ${f.name} » ? Les documents ne seront pas supprimés.`))
+      return;
+    await supabase.from("documents").update({ folder_id: null }).eq("folder_id", f.id);
+    const { error } = await supabase.from("folders").delete().eq("id", f.id);
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Dossier supprimé");
+      if (folderId === f.id) setFolderId(null);
+      load();
+    }
+  };
+
+  const renameDoc = async (d: Doc) => {
+    const name = prompt("Nouveau nom du document :", d.name);
+    if (!name || name === d.name) return;
+    const { error } = await supabase.from("documents").update({ name }).eq("id", d.id);
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Document renommé");
       load();
     }
   };
@@ -365,13 +406,22 @@ function DocsPage() {
             <Folder className="h-4 w-4" /> Tous les dossiers
           </button>
           {folders.map((f) => (
-            <button
-              key={f.id}
-              onClick={() => setFolderId(f.id)}
-              className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm ${folderId === f.id ? "bg-accent" : "hover:bg-accent/60"}`}
-            >
-              <Folder className="h-4 w-4 text-primary" /> {f.name}
-            </button>
+            <ContextMenu key={f.id}>
+              <ContextMenuTrigger asChild>
+                <button
+                  onClick={() => setFolderId(f.id)}
+                  className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm ${folderId === f.id ? "bg-accent" : "hover:bg-accent/60"}`}
+                >
+                  <Folder className="h-4 w-4 text-primary" /> {f.name}
+                </button>
+              </ContextMenuTrigger>
+              <ContextMenuContent>
+                <ContextMenuItem onClick={() => renameFolder(f)}>Renommer</ContextMenuItem>
+                <ContextMenuItem onClick={() => deleteFolder(f)} className="text-destructive">
+                  Supprimer
+                </ContextMenuItem>
+              </ContextMenuContent>
+            </ContextMenu>
           ))}
         </aside>
 
@@ -426,7 +476,12 @@ function DocsPage() {
                       onDoubleClick={() =>
                         navigate({ to: "/app/documents/editor/$id", params: { id: d.id } })
                       }
-                      title="Double-cliquez pour ouvrir"
+                      onContextMenu={(e) => {
+                        if (!isOwner) return;
+                        e.preventDefault();
+                        renameDoc(d);
+                      }}
+                      title="Double-cliquez pour ouvrir · Clic droit pour renommer"
                     >
                       <td className="px-3 py-2">
                         <Link
