@@ -207,6 +207,41 @@ function DocsPage() {
     }
   };
 
+  const renameFolder = async (f: Folder) => {
+    const name = prompt("Nouveau nom du dossier :", f.name);
+    if (!name || name === f.name) return;
+    const { error } = await supabase.from("folders").update({ name }).eq("id", f.id);
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Dossier renommé");
+      load();
+    }
+  };
+
+  const deleteFolder = async (f: Folder) => {
+    if (!confirm(`Supprimer le dossier « ${f.name} » ? Les documents ne seront pas supprimés.`))
+      return;
+    await supabase.from("documents").update({ folder_id: null }).eq("folder_id", f.id);
+    const { error } = await supabase.from("folders").delete().eq("id", f.id);
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Dossier supprimé");
+      if (folderId === f.id) setFolderId(null);
+      load();
+    }
+  };
+
+  const renameDoc = async (d: Doc) => {
+    const name = prompt("Nouveau nom du document :", d.name);
+    if (!name || name === d.name) return;
+    const { error } = await supabase.from("documents").update({ name }).eq("id", d.id);
+    if (error) toast.error(error.message);
+    else {
+      toast.success("Document renommé");
+      load();
+    }
+  };
+
   const moveDoc = async (d: Doc, targetFolderId: string | null) => {
     const { error } = await supabase
       .from("documents")
