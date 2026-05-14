@@ -226,6 +226,15 @@ export function Dashboard() {
             </table>
           </div>
         )}
+
+        <div className="mt-4 flex justify-end">
+          <Link
+            to="/app/rates-history"
+            className="inline-flex items-center gap-2 rounded-md border bg-card px-3 py-1.5 text-xs font-medium hover:bg-muted"
+          >
+            <History className="h-3.5 w-3.5" /> Voir l'historique complet
+          </Link>
+        </div>
       </section>
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
