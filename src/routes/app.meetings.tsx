@@ -92,6 +92,33 @@ function MeetingsPage() {
     }
   };
 
+  const openInEditor = (m: Meeting) => {
+    const esc = (s: string) =>
+      s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const nl2br = (s: string) => esc(s).replace(/\n/g, "<br>");
+    const parts = (m.participants ?? []).join(", ");
+    const dateStr = new Date(m.meeting_date).toLocaleDateString("fr-FR", { dateStyle: "full" });
+    const html =
+      `<h1>${esc(m.title)}</h1>` +
+      `<p><strong>Date :</strong> ${esc(dateStr)}</p>` +
+      (parts ? `<p><strong>Participants :</strong> ${esc(parts)}</p>` : "") +
+      (m.notes ? `<h2>Notes</h2><p>${nl2br(m.notes)}</p>` : "") +
+      (m.summary ? `<h2>Résumé</h2><p>${nl2br(m.summary)}</p>` : "") +
+      "<p></p>";
+    try {
+      sessionStorage.setItem("kaayu:editor:initial", html);
+    } catch {
+      toast.error("Impossible d'ouvrir l'éditeur");
+      return;
+    }
+    const safeName = m.title.replace(/[\\/:*?"<>|]+/g, "-").slice(0, 80) || "Réunion";
+    navigate({
+      to: "/app/documents/editor/$id",
+      params: { id: "new" },
+      search: { name: `${safeName}.docx` },
+    });
+  };
+
   const grouped = list.reduce<Record<string, Meeting[]>>((acc, m) => {
     (acc[m.meeting_date] ||= []).push(m);
     return acc;
