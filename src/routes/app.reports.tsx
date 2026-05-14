@@ -119,28 +119,19 @@ function ReportsPage() {
       if (data?.error) throw new Error(data.error);
       setStats(data.stats);
       setReport(data.report);
-      if (user) {
-        // Un seul rapport par mois : on supprime les précédents du même mois pour cet utilisateur
-        await supabase
-          .from("monthly_reports")
-          .delete()
-          .eq("user_id", user.id)
-          .eq("month", month);
-        const { data: saved } = await supabase
-          .from("monthly_reports")
-          .insert({ user_id: user.id, month, stats: data.stats, report: data.report })
-          .select("id")
-          .single();
-        if (saved?.id) {
-          setActiveId(saved.id);
-          loadHistory();
-          toast.success("Rapport généré");
-          navigate({ to: "/app/reports/$id", params: { id: saved.id } });
-          return;
-        }
-        loadHistory();
+      // Brouillon : on stocke en sessionStorage et on ouvre l'éditeur
+      // L'utilisateur pourra relire/modifier puis enregistrer.
+      try {
+        sessionStorage.setItem(
+          "kaayu:report:draft",
+          JSON.stringify({ month, stats: data.stats, report: data.report }),
+        );
+      } catch {
+        // ignore
       }
-      toast.success("Rapport généré et enregistré");
+      toast.success("Rapport généré — relisez et enregistrez");
+      navigate({ to: "/app/reports/$id", params: { id: "new" } });
+      return;
     } catch (e: any) {
       console.error(e);
       toast.error(e?.message || "Échec de la génération");
