@@ -42,7 +42,56 @@ type Report = {
 export const Route = createFileRoute("/app/reports/$id")({
   head: () => ({ meta: [{ title: "Rapport mensuel — Kaayu" }] }),
   component: ReportViewer,
+  errorComponent: ({ error, reset }) => (
+    <div className="mx-auto max-w-xl space-y-3 p-6 text-center">
+      <h1 className="text-lg font-semibold">Impossible d'afficher ce rapport</h1>
+      <p className="text-sm text-muted-foreground">{error?.message || "Erreur inconnue"}</p>
+      <div className="flex justify-center gap-2">
+        <Button size="sm" onClick={reset}>Réessayer</Button>
+        <Button variant="outline" size="sm" asChild>
+          <Link to="/app/reports">Retour aux rapports</Link>
+        </Button>
+      </div>
+    </div>
+  ),
 });
+
+const EMPTY_RATE_STATS: Stats["rates"] = {
+  usd_to_fc: null,
+  eur_to_usd: null,
+  chf_to_usd: null,
+  timeline: [],
+};
+
+function normalizeStats(s: any): Stats {
+  return {
+    documents: {
+      count: s?.documents?.count ?? 0,
+      totalSize: s?.documents?.totalSize ?? 0,
+      byCategory: s?.documents?.byCategory ?? {},
+    },
+    versions: { count: s?.versions?.count ?? 0 },
+    rates: {
+      usd_to_fc: s?.rates?.usd_to_fc ?? null,
+      eur_to_usd: s?.rates?.eur_to_usd ?? null,
+      chf_to_usd: s?.rates?.chf_to_usd ?? null,
+      timeline: Array.isArray(s?.rates?.timeline) ? s.rates.timeline : [],
+    },
+    tasks: { count: s?.tasks?.count ?? 0, byStatus: s?.tasks?.byStatus ?? {} },
+    meetings: { count: s?.meetings?.count ?? 0 },
+  };
+}
+
+function normalizeReport(r: any): Report {
+  return {
+    executive_summary: typeof r?.executive_summary === "string" ? r.executive_summary : "",
+    key_points: Array.isArray(r?.key_points) ? r.key_points.filter((x: any) => typeof x === "string") : [],
+    rate_analysis: typeof r?.rate_analysis === "string" ? r.rate_analysis : "",
+    activity_analysis: typeof r?.activity_analysis === "string" ? r.activity_analysis : "",
+    recommendations: Array.isArray(r?.recommendations) ? r.recommendations.filter((x: any) => typeof x === "string") : [],
+    html: typeof r?.html === "string" ? r.html : undefined,
+  };
+}
 
 function fmtBytes(n: number) {
   if (!n) return "0 o";
