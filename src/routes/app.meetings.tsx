@@ -23,6 +23,7 @@ type Meeting = {
 
 function MeetingsPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [list, setList] = useState<Meeting[]>([]);
   const [showNew, setShowNew] = useState(false);
   const [title, setTitle] = useState("");
