@@ -406,13 +406,22 @@ function DocsPage() {
             <Folder className="h-4 w-4" /> Tous les dossiers
           </button>
           {folders.map((f) => (
-            <button
-              key={f.id}
-              onClick={() => setFolderId(f.id)}
-              className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm ${folderId === f.id ? "bg-accent" : "hover:bg-accent/60"}`}
-            >
-              <Folder className="h-4 w-4 text-primary" /> {f.name}
-            </button>
+            <ContextMenu key={f.id}>
+              <ContextMenuTrigger asChild>
+                <button
+                  onClick={() => setFolderId(f.id)}
+                  className={`flex w-full items-center gap-2 rounded-md px-3 py-2 text-sm ${folderId === f.id ? "bg-accent" : "hover:bg-accent/60"}`}
+                >
+                  <Folder className="h-4 w-4 text-primary" /> {f.name}
+                </button>
+              </ContextMenuTrigger>
+              <ContextMenuContent>
+                <ContextMenuItem onClick={() => renameFolder(f)}>Renommer</ContextMenuItem>
+                <ContextMenuItem onClick={() => deleteFolder(f)} className="text-destructive">
+                  Supprimer
+                </ContextMenuItem>
+              </ContextMenuContent>
+            </ContextMenu>
           ))}
         </aside>
 
