@@ -120,6 +120,12 @@ function ReportsPage() {
       setStats(data.stats);
       setReport(data.report);
       if (user) {
+        // Un seul rapport par mois : on supprime les précédents du même mois pour cet utilisateur
+        await supabase
+          .from("monthly_reports")
+          .delete()
+          .eq("user_id", user.id)
+          .eq("month", month);
         const { data: saved } = await supabase
           .from("monthly_reports")
           .insert({ user_id: user.id, month, stats: data.stats, report: data.report })
