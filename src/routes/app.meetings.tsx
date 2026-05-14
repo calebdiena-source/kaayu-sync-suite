@@ -1,8 +1,8 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { Plus, Sparkles, Calendar as CalIcon, Loader2, FileDown } from "lucide-react";
+import { Plus, Sparkles, Calendar as CalIcon, Loader2, FileDown, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { exportTextToDOCX, exportTextToPDF } from "@/lib/exports";
@@ -23,6 +23,7 @@ type Meeting = {
 
 function MeetingsPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [list, setList] = useState<Meeting[]>([]);
   const [showNew, setShowNew] = useState(false);
   const [title, setTitle] = useState("");
@@ -89,6 +90,33 @@ function MeetingsPage() {
     } finally {
       setSummarizing(null);
     }
+  };
+
+  const openInEditor = (m: Meeting) => {
+    const esc = (s: string) =>
+      s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const nl2br = (s: string) => esc(s).replace(/\n/g, "<br>");
+    const parts = (m.participants ?? []).join(", ");
+    const dateStr = new Date(m.meeting_date).toLocaleDateString("fr-FR", { dateStyle: "full" });
+    const html =
+      `<h1>${esc(m.title)}</h1>` +
+      `<p><strong>Date :</strong> ${esc(dateStr)}</p>` +
+      (parts ? `<p><strong>Participants :</strong> ${esc(parts)}</p>` : "") +
+      (m.notes ? `<h2>Notes</h2><p>${nl2br(m.notes)}</p>` : "") +
+      (m.summary ? `<h2>Résumé</h2><p>${nl2br(m.summary)}</p>` : "") +
+      "<p></p>";
+    try {
+      sessionStorage.setItem("kaayu:editor:initial", html);
+    } catch {
+      toast.error("Impossible d'ouvrir l'éditeur");
+      return;
+    }
+    const safeName = m.title.replace(/[\\/:*?"<>|]+/g, "-").slice(0, 80) || "Réunion";
+    navigate({
+      to: "/app/documents/editor/$id",
+      params: { id: "new" },
+      search: { name: `${safeName}.docx` },
+    });
   };
 
   const grouped = list.reduce<Record<string, Meeting[]>>((acc, m) => {
@@ -177,6 +205,10 @@ function MeetingsPage() {
                         <Sparkles className="mr-1.5 h-3.5 w-3.5" />
                       )}
                       Résumer
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => openInEditor(m)}>
+                      <FileText className="mr-1 h-3.5 w-3.5" />
+                      Éditeur
                     </Button>
                     <Button
                       size="sm"
