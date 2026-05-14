@@ -281,12 +281,15 @@ function ReportViewer() {
             navigate({ to: "/app/reports" });
             return;
           }
-          const draft = JSON.parse(raw) as { month: string; stats: Stats; report: Report };
+          const parsed = JSON.parse(raw);
+          const dStats = normalizeStats(parsed.stats);
+          const dReport = normalizeReport(parsed.report);
+          const dMonth = typeof parsed.month === "string" ? parsed.month : "";
           if (!active) return;
-          setMonth(draft.month);
-          setStats(draft.stats);
-          setReport(draft.report);
-          setHtml(draft.report.html || buildHtml(draft.report, draft.stats, draft.month));
+          setMonth(dMonth);
+          setStats(dStats);
+          setReport(dReport);
+          setHtml(dReport.html || buildHtml(dReport, dStats, dMonth));
           return;
         }
         const { data, error } = await supabase
@@ -300,8 +303,8 @@ function ReportViewer() {
           navigate({ to: "/app/reports" });
           return;
         }
-        const r = data.report as Report;
-        const s = data.stats as Stats;
+        const r = normalizeReport(data.report);
+        const s = normalizeStats(data.stats);
         setMonth(data.month);
         setStats(s);
         setReport(r);
