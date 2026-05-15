@@ -125,9 +125,47 @@ function DocumentEditor() {
           let initialBody = "<p></p>";
           try {
             const seeded = sessionStorage.getItem("kaayu:editor:initial");
-            if (seeded) {
+            if (seeded && seeded.trim()) {
               initialBody = seeded;
               sessionStorage.removeItem("kaayu:editor:initial");
+              try {
+                sessionStorage.removeItem("kaayu:editor:initial:fallback");
+              } catch {
+                /* ignore */
+              }
+            } else {
+              // Sauvegarde de secours: si l'HTML prérempli est introuvable
+              // (ex: quota sessionStorage atteint, navigation iOS qui purge
+              // l'onglet, etc.), on reconstruit le corps depuis la
+              // transcription brute stockée en parallèle par la page OCR.
+              const fallbackRaw = sessionStorage.getItem("kaayu:editor:initial:fallback");
+              if (fallbackRaw && fallbackRaw.trim()) {
+                try {
+                  const parsed = JSON.parse(fallbackRaw) as {
+                    title?: string;
+                    text?: string;
+                  };
+                  const escape = (s: string) =>
+                    s
+                      .replace(/&/g, "&amp;")
+                      .replace(/</g, "&lt;")
+                      .replace(/>/g, "&gt;")
+                      .replace(/"/g, "&quot;");
+                  const body = (parsed.text ?? "")
+                    .split(/\n{2,}/)
+                    .map(
+                      (block) =>
+                        `<p>${escape(block).replace(/\n/g, "<br/>") || "&nbsp;"}</p>`,
+                    )
+                    .join("");
+                  const title = parsed.title ? `<h1>${escape(parsed.title)}</h1>` : "";
+                  initialBody = `${title}${body || "<p></p>"}`;
+                  toast.message("Contenu restauré depuis la transcription");
+                } catch {
+                  /* ignore parse */
+                }
+                sessionStorage.removeItem("kaayu:editor:initial:fallback");
+              }
             }
           } catch {
             // ignore
