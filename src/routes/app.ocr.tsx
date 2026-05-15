@@ -153,74 +153,44 @@ function OcrPage() {
       `Transcription IA ${new Date().toLocaleDateString("fr-FR")}`
     ).slice(0, 120);
 
+  const escapeHtml = (s: string) =>
+    s
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+
+  const textToHtml = (txt: string) =>
+    txt
+      .split(/\n{2,}/)
+      .map(
+        (block) =>
+          `<p>${escapeHtml(block).replace(/\n/g, "<br/>") || "&nbsp;"}</p>`,
+      )
+      .join("");
+
   const saveAsDocument = async () => {
     if (!user || !result.trim()) return;
     setSavingDoc(true);
     try {
       const title = baseTitle();
       const filename = `${title}.docx`;
-      // Sanitize storage key — iOS Safari + Supabase Storage reject accents,
-      // spaces, parentheses and other non-ASCII chars in object keys.
-      const safeName = filename
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-zA-Z0-9._-]+/g, "_")
-        .replace(/_+/g, "_")
-        .slice(0, 120);
-      const blobRaw = await buildDocxBlob(title, result);
-      // Force a typed Blob from an ArrayBuffer — on iOS Safari the Blob
-      // returned by docx/jszip can lose its MIME type and fail Storage upload.
-      const buffer = await blobRaw.arrayBuffer();
-      const blob = new Blob([buffer], { type: DOCX_MIME });
-      const size = blob.size;
-
-      // Try Google Drive first if connected, otherwise Supabase Storage.
-      let drv = { available: false } as { available: boolean };
+      // Pré-remplit l'éditeur avec la transcription, qui se chargera ensuite
+      // d'appliquer le header de taux et d'enregistrer le document .docx
+      // via le pipeline standard (Supabase Storage + versions).
+      const html = `<h1>${escapeHtml(title)}</h1>${textToHtml(result)}`;
       try {
-        drv = await checkDrive();
+        sessionStorage.setItem("kaayu:editor:initial", html);
       } catch {
         /* ignore */
       }
-
-      if (drv.available) {
-        const dataB64 = await blobToB64(blob);
-        const r = await uploadDrive({
-          data: { name: filename, mimeType: DOCX_MIME, dataB64, folderId: null },
-        });
-        setSavedDocId(r.id);
-        toast.success("Enregistré dans Documents (Google Drive)");
-      } else {
-        const path = `${user.id}/${Date.now()}-${safeName}`;
-        // Upload as ArrayBuffer (more reliable on iOS Safari than a Blob).
-        const { error: upErr } = await supabase.storage
-          .from("documents")
-          .upload(path, buffer, { contentType: DOCX_MIME, upsert: false });
-        if (upErr) throw upErr;
-        const { data: docRow, error: dbErr } = await supabase
-          .from("documents")
-          .insert({
-            user_id: user.id,
-            name: filename,
-            storage_path: path,
-            mime_type: DOCX_MIME,
-            size_bytes: size,
-            folder_id: null,
-          })
-          .select("id")
-          .single();
-        if (dbErr) throw dbErr;
-        await supabase.from("document_versions").insert({
-          document_id: docRow.id,
-          version_number: 1,
-          storage_path: path,
-          size_bytes: size,
-          mime_type: DOCX_MIME,
-          created_by: user.id,
-          comment: "Transcription IA",
-        });
-        setSavedDocId(docRow.id);
-        toast.success("Enregistré dans Documents");
-      }
+      setSavedDocId("pending");
+      toast.success("Ouverture dans l'éditeur…");
+      navigate({
+        to: "/app/documents/editor/$id",
+        params: { id: "new" },
+        search: { name: filename },
+      });
     } catch (e: any) {
       toast.error(e.message ?? "Échec de l'enregistrement");
     } finally {
