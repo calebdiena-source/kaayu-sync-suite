@@ -9,13 +9,13 @@ export const Route = createFileRoute("/privacy")({
       {
         name: "description",
         content:
-          "Politique de confidentialité de Kaayu Workspace : collecte, utilisation et protection de vos données personnelles.",
+          "Politique de confidentialité de Kaayu Workspace : email, données Google Calendar et vos droits.",
       },
       { property: "og:title", content: "Politique de confidentialité — Kaayu Workspace" },
       {
         property: "og:description",
         content:
-          "Découvrez comment Kaayu Workspace protège vos données et respecte votre vie privée.",
+          "Comment Kaayu Workspace utilise votre email et vos données Google Calendar.",
       },
     ],
   }),
@@ -37,7 +37,7 @@ function PrivacyPage() {
         <Link to="/">
           <Button variant="outline" size="sm">
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Retour
+            Retour à l'application
           </Button>
         </Link>
       </header>
@@ -50,171 +50,62 @@ function PrivacyPage() {
           Dernière mise à jour : {lastUpdated}
         </p>
 
-        <div className="prose prose-sm dark:prose-invert mt-10 max-w-none space-y-8 text-foreground">
+        <div className="mt-10 space-y-8">
           <section>
-            <h2 className="text-xl font-semibold">1. Introduction</h2>
+            <h2 className="text-xl font-semibold">1. Données que nous collectons</h2>
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-              Kaayu Workspace (« Kaayu », « nous », « notre ») accorde une importance fondamentale
-              à la protection de vos données personnelles. La présente politique décrit comment
-              nous collectons, utilisons, stockons et protégeons vos informations lorsque vous
-              utilisez notre plateforme.
+              Nous collectons votre adresse e-mail et les données de votre Google Calendar
+              uniquement dans le but de synchroniser vos événements avec Kaayu Workspace.
+              Aucune autre information personnelle n'est collectée à votre insu.
             </p>
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold">2. Données que nous collectons</h2>
-            <ul className="mt-2 list-disc space-y-1 pl-6 text-sm text-muted-foreground">
-              <li>
-                <strong className="text-foreground">Informations de compte :</strong> adresse
-                e-mail, nom, mot de passe chiffré.
-              </li>
-              <li>
-                <strong className="text-foreground">Contenu utilisateur :</strong> documents,
-                notes de réunion, tâches, événements de calendrier que vous créez.
-              </li>
-              <li>
-                <strong className="text-foreground">Données techniques :</strong> journaux de
-                connexion, type d'appareil, navigateur, adresse IP.
-              </li>
-              <li>
-                <strong className="text-foreground">Données d'utilisation :</strong>{" "}
-                interactions avec les fonctionnalités, statistiques anonymisées.
-              </li>
-            </ul>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold">3. Utilisation de vos données</h2>
+            <h2 className="text-xl font-semibold">2. Utilisation de vos données</h2>
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-              Vos données sont utilisées pour fournir et améliorer le service, sécuriser votre
-              compte, alimenter les fonctionnalités d'IA (résumé, traduction, OCR, rapports
-              mensuels), et vous envoyer des notifications essentielles liées à votre compte.
+              Vos données Google Calendar sont utilisées exclusivement pour afficher,
+              créer et synchroniser vos événements dans l'application. Votre e-mail sert
+              à identifier votre compte et à vous envoyer des notifications essentielles.
             </p>
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold">4. Intégration Google Calendar</h2>
+            <h2 className="text-xl font-semibold">3. Partage des données</h2>
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-              Lorsque vous connectez votre compte Google à Kaayu Workspace, nous demandons
-              uniquement les autorisations nécessaires à la synchronisation de votre agenda et
-              à l'enregistrement des fichiers que vous choisissez d'exporter :
+              <strong className="text-foreground">Nous ne vendons jamais vos données.</strong>{" "}
+              Elles ne sont partagées avec aucun tiers à des fins commerciales ou
+              publicitaires.
             </p>
-            <ul className="mt-2 list-disc space-y-1 pl-6 text-sm text-muted-foreground">
-              <li>
-                <strong className="text-foreground">Google Calendar (lecture / écriture) :</strong>{" "}
-                pour afficher vos événements dans Kaayu, créer, modifier ou supprimer les
-                événements que vous gérez depuis l'application, et synchroniser les rappels.
-              </li>
-              <li>
-                <strong className="text-foreground">Google Drive (drive.file) :</strong> accès
-                limité aux seuls fichiers créés ou ouverts par Kaayu — nous n'accédons jamais à
-                l'ensemble de votre Drive.
-              </li>
-              <li>
-                <strong className="text-foreground">Profil et e-mail :</strong> pour identifier
-                votre compte Google associé.
-              </li>
-            </ul>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold">4. Déconnexion de Google Calendar</h2>
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-              Les jetons d'accès et de rafraîchissement sont stockés de manière chiffrée dans
-              notre infrastructure sécurisée et ne sont utilisés que pour réaliser les actions
-              que vous initiez. Les données de calendrier ne sont jamais partagées avec des
-              tiers, ni utilisées à des fins publicitaires, ni pour entraîner des modèles d'IA.
-              Vous pouvez révoquer l'accès à tout moment depuis vos paramètres Kaayu ou depuis
-              la page{" "}
+              Vous pouvez déconnecter Google Calendar à tout moment depuis la page
+              <strong className="text-foreground"> Paramètres </strong>
+              de l'application. Une fois déconnecté, nous cessons immédiatement
+              d'accéder à vos données Calendar.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold">5. Sécurité</h2>
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              Vos données sont stockées de manière sécurisée avec chiffrement en transit
+              (TLS) et au repos. L'accès est protégé par des règles de sécurité au niveau
+              des lignes (RLS).
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold">6. Contact</h2>
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              Pour toute question relative à cette politique ou à vos données, contactez-nous à :{" "}
               <a
-                href="https://myaccount.google.com/permissions"
-                target="_blank"
-                rel="noreferrer"
+                href="mailto:calebdiena@gmail.com"
                 className="text-primary underline-offset-4 hover:underline"
               >
-                des autorisations Google
-              </a>
-              . L'usage des données issues des API Google par Kaayu respecte la{" "}
-              <a
-                href="https://developers.google.com/terms/api-services-user-data-policy"
-                target="_blank"
-                rel="noreferrer"
-                className="text-primary underline-offset-4 hover:underline"
-              >
-                Google API Services User Data Policy
-              </a>
-              , y compris les exigences Limited Use.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold">5. Intelligence artificielle</h2>
-            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-              Lorsque vous utilisez les fonctionnalités d'IA, le contenu pertinent est transmis
-              de manière sécurisée à nos partenaires de modèles (Google, OpenAI) uniquement pour
-              traiter votre requête. Aucune donnée n'est utilisée pour entraîner ces modèles.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold">5. Stockage et sécurité</h2>
-            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-              Vos données sont stockées sur une infrastructure cloud sécurisée avec chiffrement
-              en transit (TLS) et au repos. L'accès est strictement contrôlé par des règles de
-              sécurité au niveau des lignes (RLS), garantissant que seul vous pouvez consulter
-              vos contenus.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold">6. Partage des données</h2>
-            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-              Nous ne vendons jamais vos données. Elles ne sont partagées qu'avec les
-              prestataires techniques nécessaires au fonctionnement du service (hébergement,
-              fournisseurs d'IA), ou si la loi l'exige.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold">7. Vos droits</h2>
-            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-              Conformément au RGPD, vous disposez d'un droit d'accès, de rectification, de
-              suppression, de portabilité et d'opposition concernant vos données. Vous pouvez
-              exercer ces droits depuis vos paramètres ou en nous contactant.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold">8. Conservation</h2>
-            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-              Vos données sont conservées tant que votre compte est actif. À la suppression de
-              votre compte, elles sont définitivement effacées sous 30 jours, sauf obligation
-              légale contraire.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold">9. Cookies</h2>
-            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-              Kaayu utilise uniquement des cookies essentiels au fonctionnement du service
-              (session, préférences). Aucun cookie publicitaire ou de suivi tiers n'est déposé.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold">10. Modifications</h2>
-            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-              Cette politique peut évoluer. Toute modification importante vous sera notifiée par
-              e-mail ou via l'application.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-xl font-semibold">11. Contact</h2>
-            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-              Pour toute question relative à cette politique ou à vos données personnelles,
-              contactez-nous à :{" "}
-              <a
-                href="mailto:privacy@kaayu.app"
-                className="text-primary underline-offset-4 hover:underline"
-              >
-                privacy@kaayu.app
+                calebdiena@gmail.com
               </a>
               .
             </p>
@@ -225,7 +116,7 @@ function PrivacyPage() {
           <Link to="/">
             <Button variant="outline">
               <ArrowLeft className="mr-2 h-4 w-4" />
-              Retour à l'accueil
+              Retour à l'application
             </Button>
           </Link>
         </div>
