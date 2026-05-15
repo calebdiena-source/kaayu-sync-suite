@@ -477,6 +477,50 @@ export function RichTextEditor({
           <EditorContent editor={editor} />
         </div>
       </div>
+      <Dialog open={aiOpen} onOpenChange={(o) => !aiLoading && setAiOpen(o)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary" />
+              Éditer avec l'IA
+            </DialogTitle>
+            <DialogDescription>
+              Décrivez la modification à appliquer. Si du texte est sélectionné, seule la sélection
+              sera modifiée — sinon, l'ensemble du document.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            autoFocus
+            value={aiInstruction}
+            onChange={(e) => setAiInstruction(e.target.value)}
+            placeholder="Ex : reformule en plus formel, corrige les fautes, traduis en anglais, ajoute une conclusion…"
+            rows={5}
+            disabled={aiLoading}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                runAI();
+              }
+            }}
+          />
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setAiOpen(false)} disabled={aiLoading}>
+              Annuler
+            </Button>
+            <Button onClick={runAI} disabled={aiLoading || !aiInstruction.trim()}>
+              {aiLoading ? (
+                <>
+                  <Loader2 className="mr-1 h-4 w-4 animate-spin" /> En cours…
+                </>
+              ) : (
+                <>
+                  <Sparkles className="mr-1 h-4 w-4" /> Appliquer
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
