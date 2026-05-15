@@ -53,18 +53,7 @@ async function buildDocxBlob(title: string, content: string): Promise<Blob> {
   return await Packer.toBlob(doc);
 }
 
-function blobToB64(blob: Blob): Promise<string> {
-  return new Promise((res, rej) => {
-    const r = new FileReader();
-    r.onerror = () => rej(r.error);
-    r.onload = () => {
-      const s = String(r.result || "");
-      const i = s.indexOf(",");
-      res(i >= 0 ? s.slice(i + 1) : s);
-    };
-    r.readAsDataURL(blob);
-  });
-}
+
 
 function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
