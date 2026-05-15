@@ -11,8 +11,23 @@ import Placeholder from "@tiptap/extension-placeholder";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import { Table, TableRow, TableHeader, TableCell } from "@tiptap/extension-table";
-import { useEffect } from "react";
+import { DOMSerializer } from "@tiptap/pm/model";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import {
+  Sparkles,
+  Loader2,
   Bold,
   Italic,
   Underline as UnderlineIcon,
@@ -77,7 +92,7 @@ function Sep() {
   return <span className="mx-1 h-5 w-px bg-border" />;
 }
 
-function Toolbar({ editor }: { editor: Editor }) {
+function Toolbar({ editor, onAskAI }: { editor: Editor; onAskAI: () => void }) {
   const setLink = () => {
     const prev = editor.getAttributes("link").href as string | undefined;
     const url = window.prompt("URL du lien", prev ?? "https://");
@@ -320,6 +335,16 @@ function Toolbar({ editor }: { editor: Editor }) {
       >
         <Eraser className="h-4 w-4" />
       </ToolbarBtn>
+      <Sep />
+      <button
+        type="button"
+        title="Éditer avec l'IA"
+        onClick={onAskAI}
+        className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-2.5 text-xs font-medium text-primary-foreground transition hover:bg-primary/90"
+      >
+        <Sparkles className="h-3.5 w-3.5" />
+        Éditer avec l'IA
+      </button>
     </div>
   );
 }
@@ -380,11 +405,67 @@ export function RichTextEditor({
     if (editor) editor.setEditable(editable);
   }, [editable, editor]);
 
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiInstruction, setAiInstruction] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+
+  const runAI = async () => {
+    if (!editor) return;
+    const instruction = aiInstruction.trim();
+    if (!instruction) return;
+    setAiLoading(true);
+    try {
+      const { from, to, empty } = editor.state.selection;
+      let scopedHtml = "";
+      let isSelection = false;
+      if (!empty && to > from) {
+        const slice = editor.state.doc.slice(from, to);
+        const serializer = DOMSerializer.fromSchema(editor.schema);
+        const div = document.createElement("div");
+        div.appendChild(serializer.serializeFragment(slice.content));
+        scopedHtml = div.innerHTML;
+        isSelection = true;
+      } else {
+        scopedHtml = editor.getHTML();
+      }
+
+      const system =
+        "Tu es un assistant d'édition de texte. Tu reçois un fragment HTML et une instruction. " +
+        "Applique strictement l'instruction et renvoie UNIQUEMENT le HTML modifié, sans balises <html>/<body>, " +
+        "sans bloc de code Markdown, sans explication. Conserve la structure HTML (balises, listes, titres) " +
+        "lorsque cela est pertinent. Réponds dans la même langue que le contenu d'origine.";
+      const userMsg =
+        `Instruction: ${instruction}\n\nHTML à modifier:\n${scopedHtml}\n\nRenvoie le HTML modifié.`;
+
+      const { data, error } = await supabase.functions.invoke("ai-chat", {
+        body: { system, messages: [{ role: "user", content: userMsg }] },
+      });
+      if (error) throw error;
+      let reply: string = data?.reply ?? "";
+      reply = reply.trim().replace(/^```(?:html)?\s*/i, "").replace(/```\s*$/i, "").trim();
+      if (!reply) throw new Error("Réponse vide");
+
+      if (isSelection) {
+        editor.chain().focus().deleteRange({ from, to }).insertContent(reply).run();
+      } else {
+        editor.chain().focus().setContent(reply, { emitUpdate: true }).run();
+        onChange?.(editor.getHTML());
+      }
+      toast.success("Modifications appliquées");
+      setAiOpen(false);
+      setAiInstruction("");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erreur IA");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
   if (!editor) return null;
 
   return (
     <div className="flex flex-col">
-      {editable && <Toolbar editor={editor} />}
+      {editable && <Toolbar editor={editor} onAskAI={() => setAiOpen(true)} />}
       <div className={paged ? "flex justify-center bg-muted/40 p-4 sm:p-8" : ""}>
         <div
           className={
@@ -396,6 +477,50 @@ export function RichTextEditor({
           <EditorContent editor={editor} />
         </div>
       </div>
+      <Dialog open={aiOpen} onOpenChange={(o) => !aiLoading && setAiOpen(o)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary" />
+              Éditer avec l'IA
+            </DialogTitle>
+            <DialogDescription>
+              Décrivez la modification à appliquer. Si du texte est sélectionné, seule la sélection
+              sera modifiée — sinon, l'ensemble du document.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            autoFocus
+            value={aiInstruction}
+            onChange={(e) => setAiInstruction(e.target.value)}
+            placeholder="Ex : reformule en plus formel, corrige les fautes, traduis en anglais, ajoute une conclusion…"
+            rows={5}
+            disabled={aiLoading}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                e.preventDefault();
+                runAI();
+              }
+            }}
+          />
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setAiOpen(false)} disabled={aiLoading}>
+              Annuler
+            </Button>
+            <Button onClick={runAI} disabled={aiLoading || !aiInstruction.trim()}>
+              {aiLoading ? (
+                <>
+                  <Loader2 className="mr-1 h-4 w-4 animate-spin" /> En cours…
+                </>
+              ) : (
+                <>
+                  <Sparkles className="mr-1 h-4 w-4" /> Appliquer
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
