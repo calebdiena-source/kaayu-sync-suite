@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
-import { uploadDocumentToDrive, driveAvailable } from "@/lib/drive.functions";
+
 
 export const Route = createFileRoute("/app/ocr")({
   head: () => ({ meta: [{ title: "OCR & IA — Kaayu" }] }),
