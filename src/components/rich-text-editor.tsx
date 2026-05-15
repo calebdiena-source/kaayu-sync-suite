@@ -92,7 +92,7 @@ function Sep() {
   return <span className="mx-1 h-5 w-px bg-border" />;
 }
 
-function Toolbar({ editor }: { editor: Editor }) {
+function Toolbar({ editor, onAskAI }: { editor: Editor; onAskAI: () => void }) {
   const setLink = () => {
     const prev = editor.getAttributes("link").href as string | undefined;
     const url = window.prompt("URL du lien", prev ?? "https://");
