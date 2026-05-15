@@ -11,8 +11,23 @@ import Placeholder from "@tiptap/extension-placeholder";
 import TaskList from "@tiptap/extension-task-list";
 import TaskItem from "@tiptap/extension-task-item";
 import { Table, TableRow, TableHeader, TableCell } from "@tiptap/extension-table";
-import { useEffect } from "react";
+import { DOMSerializer } from "@tiptap/pm/model";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
+import {
+  Sparkles,
+  Loader2,
   Bold,
   Italic,
   Underline as UnderlineIcon,
