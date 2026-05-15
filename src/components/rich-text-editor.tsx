@@ -405,11 +405,67 @@ export function RichTextEditor({
     if (editor) editor.setEditable(editable);
   }, [editable, editor]);
 
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiInstruction, setAiInstruction] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+
+  const runAI = async () => {
+    if (!editor) return;
+    const instruction = aiInstruction.trim();
+    if (!instruction) return;
+    setAiLoading(true);
+    try {
+      const { from, to, empty } = editor.state.selection;
+      let scopedHtml = "";
+      let isSelection = false;
+      if (!empty && to > from) {
+        const slice = editor.state.doc.slice(from, to);
+        const serializer = DOMSerializer.fromSchema(editor.schema);
+        const div = document.createElement("div");
+        div.appendChild(serializer.serializeFragment(slice.content));
+        scopedHtml = div.innerHTML;
+        isSelection = true;
+      } else {
+        scopedHtml = editor.getHTML();
+      }
+
+      const system =
+        "Tu es un assistant d'édition de texte. Tu reçois un fragment HTML et une instruction. " +
+        "Applique strictement l'instruction et renvoie UNIQUEMENT le HTML modifié, sans balises <html>/<body>, " +
+        "sans bloc de code Markdown, sans explication. Conserve la structure HTML (balises, listes, titres) " +
+        "lorsque cela est pertinent. Réponds dans la même langue que le contenu d'origine.";
+      const userMsg =
+        `Instruction: ${instruction}\n\nHTML à modifier:\n${scopedHtml}\n\nRenvoie le HTML modifié.`;
+
+      const { data, error } = await supabase.functions.invoke("ai-chat", {
+        body: { system, messages: [{ role: "user", content: userMsg }] },
+      });
+      if (error) throw error;
+      let reply: string = data?.reply ?? "";
+      reply = reply.trim().replace(/^```(?:html)?\s*/i, "").replace(/```\s*$/i, "").trim();
+      if (!reply) throw new Error("Réponse vide");
+
+      if (isSelection) {
+        editor.chain().focus().deleteRange({ from, to }).insertContent(reply).run();
+      } else {
+        editor.chain().focus().setContent(reply, { emitUpdate: true }).run();
+        onChange?.(editor.getHTML());
+      }
+      toast.success("Modifications appliquées");
+      setAiOpen(false);
+      setAiInstruction("");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Erreur IA");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
   if (!editor) return null;
 
   return (
     <div className="flex flex-col">
-      {editable && <Toolbar editor={editor} />}
+      {editable && <Toolbar editor={editor} onAskAI={() => setAiOpen(true)} />}
       <div className={paged ? "flex justify-center bg-muted/40 p-4 sm:p-8" : ""}>
         <div
           className={
