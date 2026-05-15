@@ -85,9 +85,7 @@ function OcrPage() {
   const [savingDoc, setSavingDoc] = useState(false);
   const [savedDocId, setSavedDocId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
-
-  const uploadDrive = useServerFn(uploadDocumentToDrive);
-  const checkDrive = useServerFn(driveAvailable);
+  const navigate = useNavigate();
 
   const callAi = async (messages: any[]) => {
     const { data, error } = await supabase.functions.invoke("ai-chat", { body: { messages } });
