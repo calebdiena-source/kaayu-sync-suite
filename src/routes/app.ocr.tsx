@@ -168,10 +168,26 @@ function OcrPage() {
       // d'appliquer le header de taux et d'enregistrer le document .docx
       // via le pipeline standard (Supabase Storage + versions).
       const html = `<h1>${escapeHtml(title)}</h1>${textToHtml(result)}`;
+      let seededOk = false;
       try {
         sessionStorage.setItem("kaayu:editor:initial", html);
+        seededOk = true;
+      } catch {
+        /* quota / privacy mode — on retombera sur le fallback */
+      }
+      // Sauvegarde de secours: l'éditeur reconstruit le DOCX depuis ces
+      // données si l'HTML prérempli est manquant (quota atteint, onglet
+      // purgé par iOS, etc.).
+      try {
+        sessionStorage.setItem(
+          "kaayu:editor:initial:fallback",
+          JSON.stringify({ title, text: result }),
+        );
       } catch {
         /* ignore */
+      }
+      if (!seededOk) {
+        toast.message("Mode secours: la transcription sera restaurée dans l'éditeur");
       }
       setSavedDocId("pending");
       toast.success("Ouverture dans l'éditeur…");
