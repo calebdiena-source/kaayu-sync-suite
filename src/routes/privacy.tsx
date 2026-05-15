@@ -93,7 +93,58 @@ function PrivacyPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-semibold">4. Intelligence artificielle</h2>
+            <h2 className="text-xl font-semibold">4. Intégration Google Calendar</h2>
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              Lorsque vous connectez votre compte Google à Kaayu Workspace, nous demandons
+              uniquement les autorisations nécessaires à la synchronisation de votre agenda et
+              à l'enregistrement des fichiers que vous choisissez d'exporter :
+            </p>
+            <ul className="mt-2 list-disc space-y-1 pl-6 text-sm text-muted-foreground">
+              <li>
+                <strong className="text-foreground">Google Calendar (lecture / écriture) :</strong>{" "}
+                pour afficher vos événements dans Kaayu, créer, modifier ou supprimer les
+                événements que vous gérez depuis l'application, et synchroniser les rappels.
+              </li>
+              <li>
+                <strong className="text-foreground">Google Drive (drive.file) :</strong> accès
+                limité aux seuls fichiers créés ou ouverts par Kaayu — nous n'accédons jamais à
+                l'ensemble de votre Drive.
+              </li>
+              <li>
+                <strong className="text-foreground">Profil et e-mail :</strong> pour identifier
+                votre compte Google associé.
+              </li>
+            </ul>
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              Les jetons d'accès et de rafraîchissement sont stockés de manière chiffrée dans
+              notre infrastructure sécurisée et ne sont utilisés que pour réaliser les actions
+              que vous initiez. Les données de calendrier ne sont jamais partagées avec des
+              tiers, ni utilisées à des fins publicitaires, ni pour entraîner des modèles d'IA.
+              Vous pouvez révoquer l'accès à tout moment depuis vos paramètres Kaayu ou depuis
+              la page{" "}
+              <a
+                href="https://myaccount.google.com/permissions"
+                target="_blank"
+                rel="noreferrer"
+                className="text-primary underline-offset-4 hover:underline"
+              >
+                des autorisations Google
+              </a>
+              . L'usage des données issues des API Google par Kaayu respecte la{" "}
+              <a
+                href="https://developers.google.com/terms/api-services-user-data-policy"
+                target="_blank"
+                rel="noreferrer"
+                className="text-primary underline-offset-4 hover:underline"
+              >
+                Google API Services User Data Policy
+              </a>
+              , y compris les exigences Limited Use.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold">5. Intelligence artificielle</h2>
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
               Lorsque vous utilisez les fonctionnalités d'IA, le contenu pertinent est transmis
               de manière sécurisée à nos partenaires de modèles (Google, OpenAI) uniquement pour
