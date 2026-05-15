@@ -335,6 +335,16 @@ function Toolbar({ editor, onAskAI }: { editor: Editor; onAskAI: () => void }) {
       >
         <Eraser className="h-4 w-4" />
       </ToolbarBtn>
+      <Sep />
+      <button
+        type="button"
+        title="Éditer avec l'IA"
+        onClick={onAskAI}
+        className="ml-auto inline-flex h-8 items-center gap-1.5 rounded-md bg-primary px-2.5 text-xs font-medium text-primary-foreground transition hover:bg-primary/90"
+      >
+        <Sparkles className="h-3.5 w-3.5" />
+        Éditer avec l'IA
+      </button>
     </div>
   );
 }
