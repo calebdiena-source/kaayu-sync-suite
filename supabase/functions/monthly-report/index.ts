@@ -136,7 +136,7 @@ serve(async (req) => {
       meetings: { count: meetings.length },
     };
 
-    const prompt = `Tu es l'analyste mensuel de Kaayu Workspace. Analyse les données du mois ${month} et produis un rapport professionnel en français.
+    const prompt = `Tu es l'analyste de Kaayu Workspace. Analyse les données de la ${periodLabel} et produis un rapport professionnel en français.
 
 Données :
 ${JSON.stringify(stats, null, 2)}
