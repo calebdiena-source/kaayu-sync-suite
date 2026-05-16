@@ -10,12 +10,14 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { month } = await req.json(); // "YYYY-MM"
-    if (!month || !/^\d{4}-\d{2}$/.test(month)) {
-      return new Response(JSON.stringify({ error: "Mois invalide (attendu YYYY-MM)" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const { month, from, to } = await req.json(); // month "YYYY-MM" OR from/to "YYYY-MM-DD"
+    const isDate = (s: unknown) => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
+    const isMonth = (s: unknown) => typeof s === "string" && /^\d{4}-\d{2}$/.test(s);
+    if (!isMonth(month) && !(isDate(from) && isDate(to))) {
+      return new Response(
+        JSON.stringify({ error: "Période invalide (month YYYY-MM ou from/to YYYY-MM-DD)" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
