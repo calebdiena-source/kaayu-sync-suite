@@ -404,23 +404,89 @@ function ReportsPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-            <FileBarChart className="h-6 w-6 text-primary" /> Rapports mensuels IA
+            <FileBarChart className="h-6 w-6 text-primary" /> Rapports IA
           </h1>
           <p className="text-sm text-muted-foreground">
-            Synthèse intelligente de votre activité et de l'évolution des taux.
+            Synthèse intelligente sur un mois entier ou un intervalle personnalisé.
           </p>
         </div>
-        <div className="flex items-end gap-2">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Mois</label>
-            <input
-              type="month"
-              value={month}
-              onChange={(e) => setMonth(e.target.value)}
-              className="rounded-md border bg-background px-3 py-2 text-sm"
-            />
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="inline-flex rounded-md border bg-background p-0.5">
+            <button
+              type="button"
+              onClick={() => setMode("month")}
+              className={cn(
+                "rounded px-3 py-1.5 text-xs font-medium transition-colors",
+                mode === "month" ? "bg-primary text-primary-foreground" : "text-muted-foreground",
+              )}
+            >
+              Mois
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("range")}
+              className={cn(
+                "rounded px-3 py-1.5 text-xs font-medium transition-colors",
+                mode === "range" ? "bg-primary text-primary-foreground" : "text-muted-foreground",
+              )}
+            >
+              Intervalle
+            </button>
           </div>
-          <Button onClick={generate} disabled={loading}>
+          {mode === "month" ? (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Mois</label>
+              <input
+                type="month"
+                value={month}
+                onChange={(e) => setMonth(e.target.value)}
+                className="rounded-md border bg-background px-3 py-2 text-sm"
+              />
+            </div>
+          ) : (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                Intervalle
+              </label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-[260px] justify-start text-left font-normal",
+                      !range?.from && "text-muted-foreground",
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {range?.from ? (
+                      range.to ? (
+                        <>
+                          {format(range.from, "d MMM yyyy", { locale: fr })} —{" "}
+                          {format(range.to, "d MMM yyyy", { locale: fr })}
+                        </>
+                      ) : (
+                        format(range.from, "d MMM yyyy", { locale: fr })
+                      )
+                    ) : (
+                      <span>Choisir une plage</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="end">
+                  <Calendar
+                    mode="range"
+                    selected={range}
+                    onSelect={setRange}
+                    numberOfMonths={2}
+                    locale={fr}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+          )}
+          <Button onClick={generate} disabled={loading || !currentPeriodKey}>
             {loading ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : (
@@ -428,7 +494,7 @@ function ReportsPage() {
             )}
             Générer
           </Button>
-          {report && stats && (
+          {report && stats && currentPeriodKey && (
             <>
               <Button
                 onClick={() =>
@@ -440,10 +506,10 @@ function ReportsPage() {
               >
                 <Pencil className="mr-2 h-4 w-4" /> Ouvrir dans l'éditeur
               </Button>
-              <Button variant="outline" onClick={() => exportDocx(report, stats, month)}>
+              <Button variant="outline" onClick={() => exportDocx(report, stats, currentPeriodKey)}>
                 <Download className="mr-2 h-4 w-4" /> .docx
               </Button>
-              <Button variant="outline" onClick={() => exportPdf(report, stats, month)}>
+              <Button variant="outline" onClick={() => exportPdf(report, stats, currentPeriodKey)}>
                 <FileText className="mr-2 h-4 w-4" /> .pdf
               </Button>
             </>
