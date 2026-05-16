@@ -278,7 +278,7 @@ function ReportsPage() {
         {
           children: [
             new Paragraph({
-              text: `Rapport mensuel — ${monthLabelOf(mo)}`,
+              text: `Rapport mensuel — ${periodLabelOf(mo)}`,
               heading: HeadingLevel.TITLE,
             }),
             para(`Généré le ${new Date().toLocaleString("fr-FR")} · Kaayu Workspace`),
@@ -344,7 +344,7 @@ function ReportsPage() {
       y += 4;
     };
 
-    writeText(`Rapport mensuel — ${monthLabelOf(mo)}`, 20, true, [10, 30, 80]);
+    writeText(`Rapport mensuel — ${periodLabelOf(mo)}`, 20, true, [10, 30, 80]);
     writeText(
       `Généré le ${new Date().toLocaleString("fr-FR")} · Kaayu Workspace`,
       9,
@@ -467,7 +467,7 @@ function ReportsPage() {
                 .sort((a, b) => b.localeCompare(a))
                 .map((mo) => (
                   <option key={mo} value={mo}>
-                    {monthLabelOf(mo)}
+                    {periodLabelOf(mo)}
                   </option>
                 ))}
             </select>
@@ -548,7 +548,7 @@ function ReportsPage() {
         <div className="space-y-6">
           <section className="rounded-lg border bg-card p-5">
             <h2 className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
-              Synthèse — {monthLabel}
+              Synthèse — {periodLabel}
             </h2>
             <p className="mt-2 text-base leading-relaxed">{report.executive_summary}</p>
           </section>
