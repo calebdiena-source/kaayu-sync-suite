@@ -199,7 +199,19 @@ function ReportsPage() {
   };
 
   const openHistory = (h: HistoryItem) => {
-    setMonth(h.month);
+    if (/^\d{4}-\d{2}$/.test(h.month)) {
+      setMode("month");
+      setMonth(h.month);
+      setRange(undefined);
+    } else {
+      const [a, b] = h.month.split("→");
+      if (a && b) {
+        setMode("range");
+        const [ay, am, ad] = a.split("-").map(Number);
+        const [by, bm, bd] = b.split("-").map(Number);
+        setRange({ from: new Date(ay, am - 1, ad), to: new Date(by, bm - 1, bd) });
+      }
+    }
     setStats(h.stats);
     setReport(h.report);
     setActiveId(h.id);
@@ -223,11 +235,6 @@ function ReportsPage() {
   };
 
   const filteredHistory = filterMonth ? history.filter((h) => h.month === filterMonth) : history;
-
-  const monthLabelOf = (mo: string) => {
-    const [y, m] = mo.split("-").map(Number);
-    return new Date(y, m - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
-  };
 
   const downloadBlob = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
