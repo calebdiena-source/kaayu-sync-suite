@@ -3,8 +3,14 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { format } from "date-fns";
+import { fr } from "date-fns/locale";
+import type { DateRange } from "react-day-picker";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { FileBarChart, Loader2, Download, Sparkles, History, Trash2, FileText, Pencil } from "lucide-react";
+import { FileBarChart, Loader2, Download, Sparkles, History, Trash2, FileText, Pencil, CalendarIcon } from "lucide-react";
 import {
   Document,
   Packer,
@@ -70,12 +76,31 @@ function fmtBytes(n: number) {
   return `${(n / Math.pow(1024, i)).toFixed(1)} ${u[i]}`;
 }
 
+function periodLabelOf(key: string) {
+  if (/^\d{4}-\d{2}$/.test(key)) {
+    const [y, m] = key.split("-").map(Number);
+    return new Date(y, m - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+  }
+  const [a, b] = key.split("→");
+  if (a && b) {
+    const fmtD = (s: string) => {
+      const [y, m, d] = s.split("-").map(Number);
+      return new Date(y, m - 1, d).toLocaleDateString("fr-FR");
+    };
+    return `Du ${fmtD(a)} au ${fmtD(b)}`;
+  }
+  return key;
+}
+const toIsoDate = (d: Date) => format(d, "yyyy-MM-dd");
+
 type HistoryItem = { id: string; month: string; created_at: string; stats: Stats; report: Report };
 
 function ReportsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [mode, setMode] = useState<"month" | "range">("month");
   const [month, setMonth] = useState(currentMonth());
+  const [range, setRange] = useState<DateRange | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
   const [report, setReport] = useState<Report | null>(null);
@@ -83,10 +108,15 @@ function ReportsPage() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [filterMonth, setFilterMonth] = useState<string>("");
 
-  const monthLabel = useMemo(() => {
-    const [y, m] = month.split("-").map(Number);
-    return new Date(y, m - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
-  }, [month]);
+  const currentPeriodKey = useMemo(() => {
+    if (mode === "month") return month;
+    if (range?.from && range?.to) return `${toIsoDate(range.from)}→${toIsoDate(range.to)}`;
+    return "";
+  }, [mode, month, range]);
+  const periodLabel = useMemo(
+    () => (currentPeriodKey ? periodLabelOf(currentPeriodKey) : ""),
+    [currentPeriodKey],
+  );
 
   const loadHistory = async () => {
     if (!user) return;
@@ -111,30 +141,37 @@ function ReportsPage() {
       toast.error("Vous devez être connecté");
       return;
     }
+    if (!currentPeriodKey) {
+      toast.error("Sélectionnez une période");
+      return;
+    }
+    const periodKey = currentPeriodKey;
+    const body =
+      mode === "month"
+        ? { month }
+        : { from: toIsoDate(range!.from!), to: toIsoDate(range!.to!) };
     setLoading(true);
     setReport(null);
     setStats(null);
     setActiveId(null);
     try {
-      const { data, error } = await supabase.functions.invoke("monthly-report", {
-        body: { month },
-      });
+      const { data, error } = await supabase.functions.invoke("monthly-report", { body });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       setStats(data.stats);
       setReport(data.report);
 
-      // Un seul rapport par mois : on supprime tout rapport existant pour ce mois
+      // Un seul rapport par période : on supprime tout rapport existant pour cette période
       await supabase
         .from("monthly_reports")
         .delete()
         .eq("user_id", user.id)
-        .eq("month", month);
+        .eq("month", periodKey);
       const { data: saved, error: saveErr } = await supabase
         .from("monthly_reports")
         .insert({
           user_id: user.id,
-          month,
+          month: periodKey,
           stats: data.stats,
           report: data.report,
         })
@@ -143,11 +180,10 @@ function ReportsPage() {
       if (saveErr) throw saveErr;
       setActiveId(saved.id);
 
-      // Brouillon pour ouverture immédiate dans l'éditeur si l'utilisateur le souhaite
       try {
         sessionStorage.setItem(
           "kaayu:report:draft",
-          JSON.stringify({ month, stats: data.stats, report: data.report }),
+          JSON.stringify({ month: periodKey, stats: data.stats, report: data.report }),
         );
       } catch {
         // ignore
@@ -163,7 +199,19 @@ function ReportsPage() {
   };
 
   const openHistory = (h: HistoryItem) => {
-    setMonth(h.month);
+    if (/^\d{4}-\d{2}$/.test(h.month)) {
+      setMode("month");
+      setMonth(h.month);
+      setRange(undefined);
+    } else {
+      const [a, b] = h.month.split("→");
+      if (a && b) {
+        setMode("range");
+        const [ay, am, ad] = a.split("-").map(Number);
+        const [by, bm, bd] = b.split("-").map(Number);
+        setRange({ from: new Date(ay, am - 1, ad), to: new Date(by, bm - 1, bd) });
+      }
+    }
     setStats(h.stats);
     setReport(h.report);
     setActiveId(h.id);
@@ -187,11 +235,6 @@ function ReportsPage() {
   };
 
   const filteredHistory = filterMonth ? history.filter((h) => h.month === filterMonth) : history;
-
-  const monthLabelOf = (mo: string) => {
-    const [y, m] = mo.split("-").map(Number);
-    return new Date(y, m - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
-  };
 
   const downloadBlob = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
@@ -235,7 +278,7 @@ function ReportsPage() {
         {
           children: [
             new Paragraph({
-              text: `Rapport mensuel — ${monthLabelOf(mo)}`,
+              text: `Rapport mensuel — ${periodLabelOf(mo)}`,
               heading: HeadingLevel.TITLE,
             }),
             para(`Généré le ${new Date().toLocaleString("fr-FR")} · Kaayu Workspace`),
@@ -301,7 +344,7 @@ function ReportsPage() {
       y += 4;
     };
 
-    writeText(`Rapport mensuel — ${monthLabelOf(mo)}`, 20, true, [10, 30, 80]);
+    writeText(`Rapport mensuel — ${periodLabelOf(mo)}`, 20, true, [10, 30, 80]);
     writeText(
       `Généré le ${new Date().toLocaleString("fr-FR")} · Kaayu Workspace`,
       9,
@@ -361,23 +404,89 @@ function ReportsPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight">
-            <FileBarChart className="h-6 w-6 text-primary" /> Rapports mensuels IA
+            <FileBarChart className="h-6 w-6 text-primary" /> Rapports IA
           </h1>
           <p className="text-sm text-muted-foreground">
-            Synthèse intelligente de votre activité et de l'évolution des taux.
+            Synthèse intelligente sur un mois entier ou un intervalle personnalisé.
           </p>
         </div>
-        <div className="flex items-end gap-2">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-muted-foreground">Mois</label>
-            <input
-              type="month"
-              value={month}
-              onChange={(e) => setMonth(e.target.value)}
-              className="rounded-md border bg-background px-3 py-2 text-sm"
-            />
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="inline-flex rounded-md border bg-background p-0.5">
+            <button
+              type="button"
+              onClick={() => setMode("month")}
+              className={cn(
+                "rounded px-3 py-1.5 text-xs font-medium transition-colors",
+                mode === "month" ? "bg-primary text-primary-foreground" : "text-muted-foreground",
+              )}
+            >
+              Mois
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("range")}
+              className={cn(
+                "rounded px-3 py-1.5 text-xs font-medium transition-colors",
+                mode === "range" ? "bg-primary text-primary-foreground" : "text-muted-foreground",
+              )}
+            >
+              Intervalle
+            </button>
           </div>
-          <Button onClick={generate} disabled={loading}>
+          {mode === "month" ? (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">Mois</label>
+              <input
+                type="month"
+                value={month}
+                onChange={(e) => setMonth(e.target.value)}
+                className="rounded-md border bg-background px-3 py-2 text-sm"
+              />
+            </div>
+          ) : (
+            <div>
+              <label className="mb-1 block text-xs font-medium text-muted-foreground">
+                Intervalle
+              </label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-[260px] justify-start text-left font-normal",
+                      !range?.from && "text-muted-foreground",
+                    )}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {range?.from ? (
+                      range.to ? (
+                        <>
+                          {format(range.from, "d MMM yyyy", { locale: fr })} —{" "}
+                          {format(range.to, "d MMM yyyy", { locale: fr })}
+                        </>
+                      ) : (
+                        format(range.from, "d MMM yyyy", { locale: fr })
+                      )
+                    ) : (
+                      <span>Choisir une plage</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="end">
+                  <Calendar
+                    mode="range"
+                    selected={range}
+                    onSelect={setRange}
+                    numberOfMonths={2}
+                    locale={fr}
+                    initialFocus
+                    className={cn("p-3 pointer-events-auto")}
+                  />
+                </PopoverContent>
+              </Popover>
+            </div>
+          )}
+          <Button onClick={generate} disabled={loading || !currentPeriodKey}>
             {loading ? (
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             ) : (
@@ -385,7 +494,7 @@ function ReportsPage() {
             )}
             Générer
           </Button>
-          {report && stats && (
+          {report && stats && currentPeriodKey && (
             <>
               <Button
                 onClick={() =>
@@ -397,10 +506,10 @@ function ReportsPage() {
               >
                 <Pencil className="mr-2 h-4 w-4" /> Ouvrir dans l'éditeur
               </Button>
-              <Button variant="outline" onClick={() => exportDocx(report, stats, month)}>
+              <Button variant="outline" onClick={() => exportDocx(report, stats, currentPeriodKey)}>
                 <Download className="mr-2 h-4 w-4" /> .docx
               </Button>
-              <Button variant="outline" onClick={() => exportPdf(report, stats, month)}>
+              <Button variant="outline" onClick={() => exportPdf(report, stats, currentPeriodKey)}>
                 <FileText className="mr-2 h-4 w-4" /> .pdf
               </Button>
             </>
@@ -424,7 +533,7 @@ function ReportsPage() {
                 .sort((a, b) => b.localeCompare(a))
                 .map((mo) => (
                   <option key={mo} value={mo}>
-                    {monthLabelOf(mo)}
+                    {periodLabelOf(mo)}
                   </option>
                 ))}
             </select>
@@ -437,11 +546,7 @@ function ReportsPage() {
         ) : (
           <ul className="divide-y">
             {filteredHistory.map((h) => {
-              const [hy, hm] = h.month.split("-").map(Number);
-              const label = new Date(hy, hm - 1, 1).toLocaleDateString("fr-FR", {
-                month: "long",
-                year: "numeric",
-              });
+              const label = periodLabelOf(h.month);
               return (
                 <li
                   key={h.id}
@@ -505,7 +610,7 @@ function ReportsPage() {
         <div className="space-y-6">
           <section className="rounded-lg border bg-card p-5">
             <h2 className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
-              Synthèse — {monthLabel}
+              Synthèse — {periodLabel}
             </h2>
             <p className="mt-2 text-base leading-relaxed">{report.executive_summary}</p>
           </section>

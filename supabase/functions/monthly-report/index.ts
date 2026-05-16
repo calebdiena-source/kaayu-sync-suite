@@ -10,12 +10,14 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const { month } = await req.json(); // "YYYY-MM"
-    if (!month || !/^\d{4}-\d{2}$/.test(month)) {
-      return new Response(JSON.stringify({ error: "Mois invalide (attendu YYYY-MM)" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const { month, from, to } = await req.json(); // month "YYYY-MM" OR from/to "YYYY-MM-DD"
+    const isDate = (s: unknown) => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
+    const isMonth = (s: unknown) => typeof s === "string" && /^\d{4}-\d{2}$/.test(s);
+    if (!isMonth(month) && !(isDate(from) && isDate(to))) {
+      return new Response(
+        JSON.stringify({ error: "Période invalide (month YYYY-MM ou from/to YYYY-MM-DD)" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
@@ -38,10 +40,24 @@ serve(async (req) => {
       });
     }
 
-    const start = `${month}-01`;
-    const [y, m] = month.split("-").map(Number);
-    const endDate = new Date(Date.UTC(y, m, 1));
-    const end = endDate.toISOString().slice(0, 10);
+    let start: string;
+    let end: string; // exclusive
+    let periodKey: string;
+    let periodLabel: string;
+    if (isMonth(month)) {
+      start = `${month}-01`;
+      const [y, m] = (month as string).split("-").map(Number);
+      end = new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 10);
+      periodKey = month as string;
+      periodLabel = `mois ${month}`;
+    } else {
+      start = from as string;
+      const toDate = new Date(`${to}T00:00:00Z`);
+      toDate.setUTCDate(toDate.getUTCDate() + 1);
+      end = toDate.toISOString().slice(0, 10);
+      periodKey = `${from}→${to}`;
+      periodLabel = `période du ${from} au ${to}`;
+    }
 
     const [docsRes, versionsRes, ratesRes, tasksRes, meetingsRes] = await Promise.all([
       supabase
@@ -120,7 +136,7 @@ serve(async (req) => {
       meetings: { count: meetings.length },
     };
 
-    const prompt = `Tu es l'analyste mensuel de Kaayu Workspace. Analyse les données du mois ${month} et produis un rapport professionnel en français.
+    const prompt = `Tu es l'analyste de Kaayu Workspace. Analyse les données de la ${periodLabel} et produis un rapport professionnel en français.
 
 Données :
 ${JSON.stringify(stats, null, 2)}
@@ -133,7 +149,7 @@ Produis un rapport structuré en JSON avec :
 - "key_points": tableau de 5-8 points clés (chaînes courtes)
 - "rate_analysis": analyse de l'évolution des taux de change (USD→FC, EUR→USD, CHF→USD) en 1 paragraphe
 - "activity_analysis": analyse de l'activité (documents, versions, tâches, réunions) en 1-2 paragraphes
-- "recommendations": 3-5 recommandations concrètes pour le mois suivant
+- "recommendations": 3-5 recommandations concrètes pour la période suivante
 
 Réponds UNIQUEMENT avec le JSON valide, sans markdown.`;
 
@@ -184,7 +200,7 @@ Réponds UNIQUEMENT avec le JSON valide, sans markdown.`;
       };
     }
 
-    return new Response(JSON.stringify({ month, stats, report }), {
+    return new Response(JSON.stringify({ month: periodKey, period: { start, end, label: periodLabel }, stats, report }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
