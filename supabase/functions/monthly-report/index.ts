@@ -200,7 +200,7 @@ Réponds UNIQUEMENT avec le JSON valide, sans markdown.`;
       };
     }
 
-    return new Response(JSON.stringify({ month, stats, report }), {
+    return new Response(JSON.stringify({ month: periodKey, period: { start, end, label: periodLabel }, stats, report }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
