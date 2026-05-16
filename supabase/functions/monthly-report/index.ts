@@ -149,7 +149,7 @@ Produis un rapport structuré en JSON avec :
 - "key_points": tableau de 5-8 points clés (chaînes courtes)
 - "rate_analysis": analyse de l'évolution des taux de change (USD→FC, EUR→USD, CHF→USD) en 1 paragraphe
 - "activity_analysis": analyse de l'activité (documents, versions, tâches, réunions) en 1-2 paragraphes
-- "recommendations": 3-5 recommandations concrètes pour le mois suivant
+- "recommendations": 3-5 recommandations concrètes pour la période suivante
 
 Réponds UNIQUEMENT avec le JSON valide, sans markdown.`;
 
