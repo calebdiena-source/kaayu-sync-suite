@@ -40,10 +40,24 @@ serve(async (req) => {
       });
     }
 
-    const start = `${month}-01`;
-    const [y, m] = month.split("-").map(Number);
-    const endDate = new Date(Date.UTC(y, m, 1));
-    const end = endDate.toISOString().slice(0, 10);
+    let start: string;
+    let end: string; // exclusive
+    let periodKey: string;
+    let periodLabel: string;
+    if (isMonth(month)) {
+      start = `${month}-01`;
+      const [y, m] = (month as string).split("-").map(Number);
+      end = new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 10);
+      periodKey = month as string;
+      periodLabel = `mois ${month}`;
+    } else {
+      start = from as string;
+      const toDate = new Date(`${to}T00:00:00Z`);
+      toDate.setUTCDate(toDate.getUTCDate() + 1);
+      end = toDate.toISOString().slice(0, 10);
+      periodKey = `${from}→${to}`;
+      periodLabel = `période du ${from} au ${to}`;
+    }
 
     const [docsRes, versionsRes, ratesRes, tasksRes, meetingsRes] = await Promise.all([
       supabase
