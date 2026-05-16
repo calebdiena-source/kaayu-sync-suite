@@ -141,30 +141,37 @@ function ReportsPage() {
       toast.error("Vous devez être connecté");
       return;
     }
+    if (!currentPeriodKey) {
+      toast.error("Sélectionnez une période");
+      return;
+    }
+    const periodKey = currentPeriodKey;
+    const body =
+      mode === "month"
+        ? { month }
+        : { from: toIsoDate(range!.from!), to: toIsoDate(range!.to!) };
     setLoading(true);
     setReport(null);
     setStats(null);
     setActiveId(null);
     try {
-      const { data, error } = await supabase.functions.invoke("monthly-report", {
-        body: { month },
-      });
+      const { data, error } = await supabase.functions.invoke("monthly-report", { body });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       setStats(data.stats);
       setReport(data.report);
 
-      // Un seul rapport par mois : on supprime tout rapport existant pour ce mois
+      // Un seul rapport par période : on supprime tout rapport existant pour cette période
       await supabase
         .from("monthly_reports")
         .delete()
         .eq("user_id", user.id)
-        .eq("month", month);
+        .eq("month", periodKey);
       const { data: saved, error: saveErr } = await supabase
         .from("monthly_reports")
         .insert({
           user_id: user.id,
-          month,
+          month: periodKey,
           stats: data.stats,
           report: data.report,
         })
@@ -173,11 +180,10 @@ function ReportsPage() {
       if (saveErr) throw saveErr;
       setActiveId(saved.id);
 
-      // Brouillon pour ouverture immédiate dans l'éditeur si l'utilisateur le souhaite
       try {
         sessionStorage.setItem(
           "kaayu:report:draft",
-          JSON.stringify({ month, stats: data.stats, report: data.report }),
+          JSON.stringify({ month: periodKey, stats: data.stats, report: data.report }),
         );
       } catch {
         // ignore
