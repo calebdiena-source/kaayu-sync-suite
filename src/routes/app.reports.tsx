@@ -98,7 +98,9 @@ type HistoryItem = { id: string; month: string; created_at: string; stats: Stats
 function ReportsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [mode, setMode] = useState<"month" | "range">("month");
   const [month, setMonth] = useState(currentMonth());
+  const [range, setRange] = useState<DateRange | undefined>(undefined);
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
   const [report, setReport] = useState<Report | null>(null);
@@ -106,10 +108,15 @@ function ReportsPage() {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [filterMonth, setFilterMonth] = useState<string>("");
 
-  const monthLabel = useMemo(() => {
-    const [y, m] = month.split("-").map(Number);
-    return new Date(y, m - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
-  }, [month]);
+  const currentPeriodKey = useMemo(() => {
+    if (mode === "month") return month;
+    if (range?.from && range?.to) return `${toIsoDate(range.from)}→${toIsoDate(range.to)}`;
+    return "";
+  }, [mode, month, range]);
+  const periodLabel = useMemo(
+    () => (currentPeriodKey ? periodLabelOf(currentPeriodKey) : ""),
+    [currentPeriodKey],
+  );
 
   const loadHistory = async () => {
     if (!user) return;
