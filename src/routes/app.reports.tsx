@@ -76,6 +76,23 @@ function fmtBytes(n: number) {
   return `${(n / Math.pow(1024, i)).toFixed(1)} ${u[i]}`;
 }
 
+function periodLabelOf(key: string) {
+  if (/^\d{4}-\d{2}$/.test(key)) {
+    const [y, m] = key.split("-").map(Number);
+    return new Date(y, m - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+  }
+  const [a, b] = key.split("→");
+  if (a && b) {
+    const fmtD = (s: string) => {
+      const [y, m, d] = s.split("-").map(Number);
+      return new Date(y, m - 1, d).toLocaleDateString("fr-FR");
+    };
+    return `Du ${fmtD(a)} au ${fmtD(b)}`;
+  }
+  return key;
+}
+const toIsoDate = (d: Date) => format(d, "yyyy-MM-dd");
+
 type HistoryItem = { id: string; month: string; created_at: string; stats: Stats; report: Report };
 
 function ReportsPage() {
