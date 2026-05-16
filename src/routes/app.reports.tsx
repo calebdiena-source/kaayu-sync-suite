@@ -546,11 +546,7 @@ function ReportsPage() {
         ) : (
           <ul className="divide-y">
             {filteredHistory.map((h) => {
-              const [hy, hm] = h.month.split("-").map(Number);
-              const label = new Date(hy, hm - 1, 1).toLocaleDateString("fr-FR", {
-                month: "long",
-                year: "numeric",
-              });
+              const label = periodLabelOf(h.month);
               return (
                 <li
                   key={h.id}
