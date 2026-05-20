@@ -576,6 +576,20 @@ function ReportsPage() {
     writeText(r.versions_analysis);
     heading("Tags");
     writeText(r.tags_analysis);
+    if (r.content_themes && r.content_themes.length) {
+      heading("Thèmes détectés");
+      r.content_themes.forEach((t) => writeText(`• ${t}`));
+    }
+    if (r.per_document && r.per_document.length) {
+      heading("Analyse fichier par fichier");
+      r.per_document.forEach((d) => {
+        writeText(d.name, 12, true, [10, 30, 80]);
+        writeText(`${d.mime ?? "type inconnu"} · ${d.category ?? "sans catégorie"}`, 9, false, [120, 120, 120]);
+        writeText(d.summary || "—");
+        (d.key_points ?? []).forEach((k) => writeText(`• ${k}`, 10, false, [60, 60, 60]));
+        y += 4;
+      });
+    }
     heading("Recommandations");
     r.recommendations.forEach((p) => writeText(`→ ${p}`));
     pdf.save(`rapport-documents-kaayu-${stripKind(mo)}.pdf`);
