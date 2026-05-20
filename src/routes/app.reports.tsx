@@ -443,6 +443,7 @@ function ReportsPage() {
       .map((block) => block.trim())
       .filter(Boolean)
       .map((block) => para(block));
+    const recos = (r.recommendations || []).filter(Boolean);
     const doc = new Document({
       sections: [
         {
@@ -454,6 +455,9 @@ function ReportsPage() {
             para(`Généré le ${new Date().toLocaleString("fr-FR")} · Kaayu Workspace · ${s.documents.count} document(s)`),
             heading("Synthèse"),
             ...(synthParas.length ? synthParas : [para("Aucune synthèse générée.")]),
+            ...(recos.length
+              ? [heading("Recommandations"), ...recos.map((p) => new Paragraph({ text: p, bullet: { level: 0 } }))]
+              : []),
           ],
         },
       ],
