@@ -437,26 +437,6 @@ function ReportsPage() {
       new Paragraph({ children: [new TextRun({ text, ...opts })], spacing: { after: 120 } });
     const heading = (text: string) =>
       new Paragraph({ text, heading: HeadingLevel.HEADING_1, spacing: { before: 240, after: 120 } });
-    const catRows = Object.entries(s.documents.byCategory).map(
-      ([k, v]) =>
-        new TableRow({
-          children: [
-            new TableCell({ children: [para(k)] }),
-            new TableCell({ children: [para(String(v))] }),
-          ],
-        }),
-    );
-    const catTable = new Table({
-      width: { size: 100, type: WidthType.PERCENTAGE },
-      rows: [
-        new TableRow({
-          children: ["Catégorie", "Documents"].map(
-            (t) => new TableCell({ children: [para(t, { bold: true })] }),
-          ),
-        }),
-        ...catRows,
-      ],
-    });
     const synthParas = (r.synthesis || "")
       .split(/\n{2,}/)
       .map((block) => block.trim())
