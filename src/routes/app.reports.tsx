@@ -5,12 +5,24 @@ import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
 import type { DateRange } from "react-day-picker";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import { FileBarChart, Loader2, Download, Sparkles, History, Trash2, FileText, Pencil, CalendarIcon } from "lucide-react";
+import {
+  FileBarChart,
+  Loader2,
+  Download,
+  Sparkles,
+  History,
+  Trash2,
+  FileText,
+  Pencil,
+  CalendarIcon,
+  Files,
+} from "lucide-react";
 import {
   Document,
   Packer,
@@ -26,11 +38,20 @@ import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
 export const Route = createFileRoute("/app/reports")({
-  head: () => ({ meta: [{ title: "Rapports mensuels — Kaayu" }] }),
+  head: () => ({ meta: [{ title: "Rapports IA — Kaayu" }] }),
   component: ReportsPage,
 });
 
-type Stats = {
+type RateStat = {
+  first: number;
+  last: number;
+  min: number;
+  max: number;
+  avg: number;
+  variation: number;
+  count: number;
+};
+type GlobalStats = {
   documents: { count: number; totalSize: number; byCategory: Record<string, number> };
   versions: { count: number };
   rates: {
@@ -47,22 +68,35 @@ type Stats = {
   tasks: { count: number; byStatus: Record<string, number> };
   meetings: { count: number };
 };
-type RateStat = {
-  first: number;
-  last: number;
-  min: number;
-  max: number;
-  avg: number;
-  variation: number;
-  count: number;
-};
-type Report = {
+type GlobalReport = {
   executive_summary: string;
   key_points: string[];
   rate_analysis: string;
   activity_analysis: string;
   recommendations: string[];
 };
+type DocsStats = {
+  documents: {
+    count: number;
+    totalSize: number;
+    byCategory: Record<string, number>;
+    byMime: Record<string, number>;
+    topTags: Array<{ tag: string; count: number }>;
+    timeline: Array<{ date: string; count: number }>;
+  };
+  versions: { count: number; totalSize: number; docsWithVersions: number };
+};
+type DocsReport = {
+  executive_summary: string;
+  key_points: string[];
+  categories_analysis: string;
+  formats_analysis: string;
+  versions_analysis: string;
+  tags_analysis: string;
+  recommendations: string[];
+};
+
+const DOCS_PREFIX = "docs:";
 
 function currentMonth() {
   const d = new Date();
@@ -76,12 +110,19 @@ function fmtBytes(n: number) {
   return `${(n / Math.pow(1024, i)).toFixed(1)} ${u[i]}`;
 }
 
+function stripKind(key: string) {
+  return key.startsWith(DOCS_PREFIX) ? key.slice(DOCS_PREFIX.length) : key;
+}
+function kindOf(key: string): "global" | "documents" {
+  return key.startsWith(DOCS_PREFIX) ? "documents" : "global";
+}
 function periodLabelOf(key: string) {
-  if (/^\d{4}-\d{2}$/.test(key)) {
-    const [y, m] = key.split("-").map(Number);
+  const k = stripKind(key);
+  if (/^\d{4}-\d{2}$/.test(k)) {
+    const [y, m] = k.split("-").map(Number);
     return new Date(y, m - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
   }
-  const [a, b] = key.split("→");
+  const [a, b] = k.split("→");
   if (a && b) {
     const fmtD = (s: string) => {
       const [y, m, d] = s.split("-").map(Number);
@@ -89,33 +130,44 @@ function periodLabelOf(key: string) {
     };
     return `Du ${fmtD(a)} au ${fmtD(b)}`;
   }
-  return key;
+  return k;
 }
 const toIsoDate = (d: Date) => format(d, "yyyy-MM-dd");
 
-type HistoryItem = { id: string; month: string; created_at: string; stats: Stats; report: Report };
+type HistoryItem = {
+  id: string;
+  month: string;
+  created_at: string;
+  stats: any;
+  report: any;
+};
 
 function ReportsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [kind, setKind] = useState<"global" | "documents">("global");
   const [mode, setMode] = useState<"month" | "range">("month");
   const [month, setMonth] = useState(currentMonth());
   const [range, setRange] = useState<DateRange | undefined>(undefined);
   const [loading, setLoading] = useState(false);
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [report, setReport] = useState<Report | null>(null);
+  const [stats, setStats] = useState<any>(null);
+  const [report, setReport] = useState<any>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [filterMonth, setFilterMonth] = useState<string>("");
 
-  const currentPeriodKey = useMemo(() => {
+  const basePeriodKey = useMemo(() => {
     if (mode === "month") return month;
     if (range?.from && range?.to) return `${toIsoDate(range.from)}→${toIsoDate(range.to)}`;
     return "";
   }, [mode, month, range]);
+  const storageKey = useMemo(
+    () => (basePeriodKey ? (kind === "documents" ? DOCS_PREFIX + basePeriodKey : basePeriodKey) : ""),
+    [basePeriodKey, kind],
+  );
   const periodLabel = useMemo(
-    () => (currentPeriodKey ? periodLabelOf(currentPeriodKey) : ""),
-    [currentPeriodKey],
+    () => (basePeriodKey ? periodLabelOf(basePeriodKey) : ""),
+    [basePeriodKey],
   );
 
   const loadHistory = async () => {
@@ -124,7 +176,7 @@ function ReportsPage() {
       .from("monthly_reports")
       .select("id,month,created_at,stats,report")
       .order("created_at", { ascending: false })
-      .limit(50);
+      .limit(100);
     if (error) {
       console.error(error);
       return;
@@ -136,32 +188,40 @@ function ReportsPage() {
     loadHistory();
   }, [user?.id]);
 
+  // Reset display when switching tab
+  useEffect(() => {
+    setReport(null);
+    setStats(null);
+    setActiveId(null);
+    setFilterMonth("");
+  }, [kind]);
+
   const generate = async () => {
     if (!user) {
       toast.error("Vous devez être connecté");
       return;
     }
-    if (!currentPeriodKey) {
+    if (!basePeriodKey) {
       toast.error("Sélectionnez une période");
       return;
     }
-    const periodKey = currentPeriodKey;
+    const periodKey = storageKey;
     const body =
       mode === "month"
         ? { month }
         : { from: toIsoDate(range!.from!), to: toIsoDate(range!.to!) };
+    const fnName = kind === "documents" ? "documents-report" : "monthly-report";
     setLoading(true);
     setReport(null);
     setStats(null);
     setActiveId(null);
     try {
-      const { data, error } = await supabase.functions.invoke("monthly-report", { body });
+      const { data, error } = await supabase.functions.invoke(fnName, { body });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       setStats(data.stats);
       setReport(data.report);
 
-      // Un seul rapport par période : on supprime tout rapport existant pour cette période
       await supabase
         .from("monthly_reports")
         .delete()
@@ -180,14 +240,6 @@ function ReportsPage() {
       if (saveErr) throw saveErr;
       setActiveId(saved.id);
 
-      try {
-        sessionStorage.setItem(
-          "kaayu:report:draft",
-          JSON.stringify({ month: periodKey, stats: data.stats, report: data.report }),
-        );
-      } catch {
-        // ignore
-      }
       await loadHistory();
       toast.success("Rapport généré et enregistré dans l'historique");
     } catch (e: any) {
@@ -199,12 +251,15 @@ function ReportsPage() {
   };
 
   const openHistory = (h: HistoryItem) => {
-    if (/^\d{4}-\d{2}$/.test(h.month)) {
+    const k = kindOf(h.month);
+    setKind(k);
+    const raw = stripKind(h.month);
+    if (/^\d{4}-\d{2}$/.test(raw)) {
       setMode("month");
-      setMonth(h.month);
+      setMonth(raw);
       setRange(undefined);
     } else {
-      const [a, b] = h.month.split("→");
+      const [a, b] = raw.split("→");
       if (a && b) {
         setMode("range");
         const [ay, am, ad] = a.split("-").map(Number);
@@ -215,7 +270,9 @@ function ReportsPage() {
     setStats(h.stats);
     setReport(h.report);
     setActiveId(h.id);
-    navigate({ to: "/app/reports/$id", params: { id: h.id } });
+    if (k === "global") {
+      navigate({ to: "/app/reports/$id", params: { id: h.id } });
+    }
   };
 
   const removeHistory = async (id: string) => {
@@ -234,7 +291,10 @@ function ReportsPage() {
     toast.success("Rapport supprimé");
   };
 
-  const filteredHistory = filterMonth ? history.filter((h) => h.month === filterMonth) : history;
+  const visibleHistory = history.filter((h) => kindOf(h.month) === kind);
+  const filteredHistory = filterMonth
+    ? visibleHistory.filter((h) => h.month === filterMonth)
+    : visibleHistory;
 
   const downloadBlob = (blob: Blob, filename: string) => {
     const url = URL.createObjectURL(blob);
@@ -245,7 +305,8 @@ function ReportsPage() {
     URL.revokeObjectURL(url);
   };
 
-  const exportDocx = async (r: Report, s: Stats, mo: string) => {
+  // ===== Global exporters (kept from previous version) =====
+  const exportGlobalDocx = async (r: GlobalReport, s: GlobalStats, mo: string) => {
     const para = (text: string, opts: any = {}) =>
       new Paragraph({ children: [new TextRun({ text, ...opts })], spacing: { after: 120 } });
     const heading = (text: string, level: any = HeadingLevel.HEADING_1) =>
@@ -278,7 +339,7 @@ function ReportsPage() {
         {
           children: [
             new Paragraph({
-              text: `Rapport mensuel — ${periodLabelOf(mo)}`,
+              text: `Rapport global — ${periodLabelOf(mo)}`,
               heading: HeadingLevel.TITLE,
             }),
             para(`Généré le ${new Date().toLocaleString("fr-FR")} · Kaayu Workspace`),
@@ -291,11 +352,6 @@ function ReportsPage() {
             ratesTable,
             heading("Analyse de l'activité"),
             para(r.activity_analysis),
-            heading("Indicateurs"),
-            para(`Documents créés : ${s.documents.count} (${fmtBytes(s.documents.totalSize)})`),
-            para(`Nouvelles versions : ${s.versions.count}`),
-            para(`Tâches : ${s.tasks.count}`),
-            para(`Réunions : ${s.meetings.count}`),
             heading("Recommandations"),
             ...r.recommendations.map((p) => new Paragraph({ text: p, bullet: { level: 0 } })),
           ],
@@ -303,29 +359,23 @@ function ReportsPage() {
       ],
     });
     const blob = await Packer.toBlob(doc);
-    downloadBlob(blob, `rapport-kaayu-${mo}.docx`);
+    downloadBlob(blob, `rapport-kaayu-${stripKind(mo)}.docx`);
     toast.success("Export .docx téléchargé");
   };
 
-  const exportPdf = (r: Report, s: Stats, mo: string) => {
+  const exportGlobalPdf = (r: GlobalReport, s: GlobalStats, mo: string) => {
     const pdf = new jsPDF({ unit: "pt", format: "a4" });
     const margin = 40;
     const pageW = pdf.internal.pageSize.getWidth();
     const pageH = pdf.internal.pageSize.getHeight();
     let y = margin;
-
     const ensureSpace = (h: number) => {
       if (y + h > pageH - margin) {
         pdf.addPage();
         y = margin;
       }
     };
-    const writeText = (
-      text: string,
-      size = 11,
-      bold = false,
-      color: [number, number, number] = [30, 30, 30],
-    ) => {
+    const writeText = (text: string, size = 11, bold = false, color: [number, number, number] = [30, 30, 30]) => {
       pdf.setFont("helvetica", bold ? "bold" : "normal");
       pdf.setFontSize(size);
       pdf.setTextColor(...color);
@@ -343,14 +393,8 @@ function ReportsPage() {
       writeText(text, 14, true, [20, 60, 120]);
       y += 4;
     };
-
-    writeText(`Rapport mensuel — ${periodLabelOf(mo)}`, 20, true, [10, 30, 80]);
-    writeText(
-      `Généré le ${new Date().toLocaleString("fr-FR")} · Kaayu Workspace`,
-      9,
-      false,
-      [120, 120, 120],
-    );
+    writeText(`Rapport global — ${periodLabelOf(mo)}`, 20, true, [10, 30, 80]);
+    writeText(`Généré le ${new Date().toLocaleString("fr-FR")} · Kaayu Workspace`, 9, false, [120, 120, 120]);
     y += 8;
     heading("Synthèse exécutive");
     writeText(r.executive_summary);
@@ -358,18 +402,9 @@ function ReportsPage() {
     r.key_points.forEach((p) => writeText(`• ${p}`));
     heading("Analyse des taux de change");
     writeText(r.rate_analysis);
-
     const rateRow = (label: string, st: RateStat | null) =>
       st
-        ? [
-            label,
-            st.first.toFixed(6),
-            st.last.toFixed(6),
-            st.min.toFixed(6),
-            st.max.toFixed(6),
-            st.avg.toFixed(6),
-            `${st.variation.toFixed(2)} %`,
-          ]
+        ? [label, st.first.toFixed(6), st.last.toFixed(6), st.min.toFixed(6), st.max.toFixed(6), st.avg.toFixed(6), `${st.variation.toFixed(2)} %`]
         : [label, "—", "—", "—", "—", "—", "—"];
     autoTable(pdf, {
       startY: y + 6,
@@ -384,19 +419,156 @@ function ReportsPage() {
       margin: { left: margin, right: margin },
     });
     y = (pdf as any).lastAutoTable.finalY + 12;
-
     heading("Analyse de l'activité");
     writeText(r.activity_analysis);
-    heading("Indicateurs");
-    writeText(`Documents : ${s.documents.count} (${fmtBytes(s.documents.totalSize)})`);
-    writeText(`Versions : ${s.versions.count}`);
-    writeText(`Tâches : ${s.tasks.count}`);
-    writeText(`Réunions : ${s.meetings.count}`);
     heading("Recommandations");
     r.recommendations.forEach((p) => writeText(`→ ${p}`));
-
-    pdf.save(`rapport-kaayu-${mo}.pdf`);
+    pdf.save(`rapport-kaayu-${stripKind(mo)}.pdf`);
     toast.success("Export .pdf téléchargé");
+  };
+
+  // ===== Documents exporters =====
+  const exportDocsDocx = async (r: DocsReport, s: DocsStats, mo: string) => {
+    const para = (text: string, opts: any = {}) =>
+      new Paragraph({ children: [new TextRun({ text, ...opts })], spacing: { after: 120 } });
+    const heading = (text: string) =>
+      new Paragraph({ text, heading: HeadingLevel.HEADING_1, spacing: { before: 240, after: 120 } });
+    const catRows = Object.entries(s.documents.byCategory).map(
+      ([k, v]) =>
+        new TableRow({
+          children: [
+            new TableCell({ children: [para(k)] }),
+            new TableCell({ children: [para(String(v))] }),
+          ],
+        }),
+    );
+    const catTable = new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: [
+        new TableRow({
+          children: ["Catégorie", "Documents"].map(
+            (t) => new TableCell({ children: [para(t, { bold: true })] }),
+          ),
+        }),
+        ...catRows,
+      ],
+    });
+    const doc = new Document({
+      sections: [
+        {
+          children: [
+            new Paragraph({
+              text: `Rapport documents — ${periodLabelOf(mo)}`,
+              heading: HeadingLevel.TITLE,
+            }),
+            para(`Généré le ${new Date().toLocaleString("fr-FR")} · Kaayu Workspace`),
+            heading("Synthèse exécutive"),
+            para(r.executive_summary),
+            heading("Points clés"),
+            ...r.key_points.map((p) => new Paragraph({ text: p, bullet: { level: 0 } })),
+            heading("Répartition par catégorie"),
+            para(r.categories_analysis),
+            catTable,
+            heading("Formats et tailles"),
+            para(r.formats_analysis),
+            heading("Versioning"),
+            para(r.versions_analysis),
+            heading("Tags"),
+            para(r.tags_analysis),
+            heading("Recommandations"),
+            ...r.recommendations.map((p) => new Paragraph({ text: p, bullet: { level: 0 } })),
+          ],
+        },
+      ],
+    });
+    const blob = await Packer.toBlob(doc);
+    downloadBlob(blob, `rapport-documents-kaayu-${stripKind(mo)}.docx`);
+    toast.success("Export .docx téléchargé");
+  };
+
+  const exportDocsPdf = (r: DocsReport, s: DocsStats, mo: string) => {
+    const pdf = new jsPDF({ unit: "pt", format: "a4" });
+    const margin = 40;
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = pdf.internal.pageSize.getHeight();
+    let y = margin;
+    const ensureSpace = (h: number) => {
+      if (y + h > pageH - margin) {
+        pdf.addPage();
+        y = margin;
+      }
+    };
+    const writeText = (text: string, size = 11, bold = false, color: [number, number, number] = [30, 30, 30]) => {
+      pdf.setFont("helvetica", bold ? "bold" : "normal");
+      pdf.setFontSize(size);
+      pdf.setTextColor(...color);
+      const lines = pdf.splitTextToSize(text, pageW - margin * 2);
+      const lh = size * 1.3;
+      for (const line of lines) {
+        ensureSpace(lh);
+        pdf.text(line, margin, y);
+        y += lh;
+      }
+    };
+    const heading = (text: string) => {
+      y += 8;
+      ensureSpace(24);
+      writeText(text, 14, true, [20, 60, 120]);
+      y += 4;
+    };
+    writeText(`Rapport documents — ${periodLabelOf(mo)}`, 20, true, [10, 30, 80]);
+    writeText(`Généré le ${new Date().toLocaleString("fr-FR")} · Kaayu Workspace`, 9, false, [120, 120, 120]);
+    y += 8;
+    heading("Synthèse exécutive");
+    writeText(r.executive_summary);
+    heading("Points clés");
+    r.key_points.forEach((p) => writeText(`• ${p}`));
+    heading("Répartition par catégorie");
+    writeText(r.categories_analysis);
+    autoTable(pdf, {
+      startY: y + 6,
+      head: [["Catégorie", "Documents"]],
+      body: Object.entries(s.documents.byCategory).map(([k, v]) => [k, String(v)]),
+      styles: { font: "helvetica", fontSize: 9 },
+      headStyles: { fillColor: [20, 60, 120] },
+      margin: { left: margin, right: margin },
+    });
+    y = (pdf as any).lastAutoTable.finalY + 12;
+    heading("Formats et tailles");
+    writeText(r.formats_analysis);
+    heading("Versioning");
+    writeText(r.versions_analysis);
+    heading("Tags");
+    writeText(r.tags_analysis);
+    heading("Recommandations");
+    r.recommendations.forEach((p) => writeText(`→ ${p}`));
+    pdf.save(`rapport-documents-kaayu-${stripKind(mo)}.pdf`);
+    toast.success("Export .pdf téléchargé");
+  };
+
+  const exportCurrent = (which: "pdf" | "docx") => {
+    if (!report || !stats || !storageKey) return;
+    if (kind === "documents") {
+      which === "pdf"
+        ? exportDocsPdf(report as DocsReport, stats as DocsStats, storageKey)
+        : exportDocsDocx(report as DocsReport, stats as DocsStats, storageKey);
+    } else {
+      which === "pdf"
+        ? exportGlobalPdf(report as GlobalReport, stats as GlobalStats, storageKey)
+        : exportGlobalDocx(report as GlobalReport, stats as GlobalStats, storageKey);
+    }
+  };
+
+  const exportHistoryItem = (h: HistoryItem, which: "pdf" | "docx") => {
+    if (kindOf(h.month) === "documents") {
+      which === "pdf"
+        ? exportDocsPdf(h.report as DocsReport, h.stats as DocsStats, h.month)
+        : exportDocsDocx(h.report as DocsReport, h.stats as DocsStats, h.month);
+    } else {
+      which === "pdf"
+        ? exportGlobalPdf(h.report as GlobalReport, h.stats as GlobalStats, h.month)
+        : exportGlobalDocx(h.report as GlobalReport, h.stats as GlobalStats, h.month);
+    }
   };
 
   return (
@@ -407,95 +579,109 @@ function ReportsPage() {
             <FileBarChart className="h-6 w-6 text-primary" /> Rapports IA
           </h1>
           <p className="text-sm text-muted-foreground">
-            Synthèse intelligente sur un mois entier ou un intervalle personnalisé.
+            Choisissez le type de rapport, puis une période (mois ou intervalle).
           </p>
         </div>
-        <div className="flex flex-wrap items-end gap-2">
-          <div className="inline-flex rounded-md border bg-background p-0.5">
-            <button
-              type="button"
-              onClick={() => setMode("month")}
-              className={cn(
-                "rounded px-3 py-1.5 text-xs font-medium transition-colors",
-                mode === "month" ? "bg-primary text-primary-foreground" : "text-muted-foreground",
-              )}
-            >
-              Mois
-            </button>
-            <button
-              type="button"
-              onClick={() => setMode("range")}
-              className={cn(
-                "rounded px-3 py-1.5 text-xs font-medium transition-colors",
-                mode === "range" ? "bg-primary text-primary-foreground" : "text-muted-foreground",
-              )}
-            >
-              Intervalle
-            </button>
-          </div>
-          {mode === "month" ? (
-            <div>
-              <label className="mb-1 block text-xs font-medium text-muted-foreground">Mois</label>
-              <input
-                type="month"
-                value={month}
-                onChange={(e) => setMonth(e.target.value)}
-                className="rounded-md border bg-background px-3 py-2 text-sm"
-              />
-            </div>
-          ) : (
-            <div>
-              <label className="mb-1 block text-xs font-medium text-muted-foreground">
-                Intervalle
-              </label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-[260px] justify-start text-left font-normal",
-                      !range?.from && "text-muted-foreground",
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {range?.from ? (
-                      range.to ? (
-                        <>
-                          {format(range.from, "d MMM yyyy", { locale: fr })} —{" "}
-                          {format(range.to, "d MMM yyyy", { locale: fr })}
-                        </>
-                      ) : (
-                        format(range.from, "d MMM yyyy", { locale: fr })
-                      )
-                    ) : (
-                      <span>Choisir une plage</span>
-                    )}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="end">
-                  <Calendar
-                    mode="range"
-                    selected={range}
-                    onSelect={setRange}
-                    numberOfMonths={2}
-                    locale={fr}
-                    initialFocus
-                    className={cn("p-3 pointer-events-auto")}
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-          )}
-          <Button onClick={generate} disabled={loading || !currentPeriodKey}>
-            {loading ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Sparkles className="mr-2 h-4 w-4" />
+      </div>
+
+      <Tabs value={kind} onValueChange={(v) => setKind(v as any)}>
+        <TabsList>
+          <TabsTrigger value="global">
+            <FileBarChart className="mr-1.5 h-4 w-4" /> Rapport global
+          </TabsTrigger>
+          <TabsTrigger value="documents">
+            <Files className="mr-1.5 h-4 w-4" /> Rapport documents
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="inline-flex rounded-md border bg-background p-0.5">
+          <button
+            type="button"
+            onClick={() => setMode("month")}
+            className={cn(
+              "rounded px-3 py-1.5 text-xs font-medium transition-colors",
+              mode === "month" ? "bg-primary text-primary-foreground" : "text-muted-foreground",
             )}
-            Générer
-          </Button>
-          {report && stats && currentPeriodKey && (
-            <>
+          >
+            Mois
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode("range")}
+            className={cn(
+              "rounded px-3 py-1.5 text-xs font-medium transition-colors",
+              mode === "range" ? "bg-primary text-primary-foreground" : "text-muted-foreground",
+            )}
+          >
+            Intervalle
+          </button>
+        </div>
+        {mode === "month" ? (
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">Mois</label>
+            <input
+              type="month"
+              value={month}
+              onChange={(e) => setMonth(e.target.value)}
+              className="rounded-md border bg-background px-3 py-2 text-sm"
+            />
+          </div>
+        ) : (
+          <div>
+            <label className="mb-1 block text-xs font-medium text-muted-foreground">
+              Intervalle
+            </label>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-[260px] justify-start text-left font-normal",
+                    !range?.from && "text-muted-foreground",
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {range?.from ? (
+                    range.to ? (
+                      <>
+                        {format(range.from, "d MMM yyyy", { locale: fr })} —{" "}
+                        {format(range.to, "d MMM yyyy", { locale: fr })}
+                      </>
+                    ) : (
+                      format(range.from, "d MMM yyyy", { locale: fr })
+                    )
+                  ) : (
+                    <span>Choisir une plage</span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="end">
+                <Calendar
+                  mode="range"
+                  selected={range}
+                  onSelect={setRange}
+                  numberOfMonths={2}
+                  locale={fr}
+                  initialFocus
+                  className={cn("p-3 pointer-events-auto")}
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+        )}
+        <Button onClick={generate} disabled={loading || !basePeriodKey}>
+          {loading ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Sparkles className="mr-2 h-4 w-4" />
+          )}
+          Générer
+        </Button>
+        {report && stats && storageKey && (
+          <>
+            {kind === "global" && (
               <Button
                 onClick={() =>
                   navigate({
@@ -506,21 +692,22 @@ function ReportsPage() {
               >
                 <Pencil className="mr-2 h-4 w-4" /> Ouvrir dans l'éditeur
               </Button>
-              <Button variant="outline" onClick={() => exportDocx(report, stats, currentPeriodKey)}>
-                <Download className="mr-2 h-4 w-4" /> .docx
-              </Button>
-              <Button variant="outline" onClick={() => exportPdf(report, stats, currentPeriodKey)}>
-                <FileText className="mr-2 h-4 w-4" /> .pdf
-              </Button>
-            </>
-          )}
-        </div>
+            )}
+            <Button variant="outline" onClick={() => exportCurrent("docx")}>
+              <Download className="mr-2 h-4 w-4" /> .docx
+            </Button>
+            <Button variant="outline" onClick={() => exportCurrent("pdf")}>
+              <FileText className="mr-2 h-4 w-4" /> .pdf
+            </Button>
+          </>
+        )}
       </div>
 
       <section className="rounded-lg border bg-card">
         <header className="flex flex-wrap items-center justify-between gap-2 border-b px-4 py-3">
           <h2 className="flex items-center gap-2 text-sm font-semibold">
-            <History className="h-4 w-4" /> Historique des rapports
+            <History className="h-4 w-4" /> Historique —{" "}
+            {kind === "documents" ? "rapports documents" : "rapports globaux"}
           </h2>
           <div className="flex items-center gap-2">
             <select
@@ -528,8 +715,8 @@ function ReportsPage() {
               onChange={(e) => setFilterMonth(e.target.value)}
               className="rounded-md border bg-background px-2 py-1 text-xs"
             >
-              <option value="">Tous les rapports</option>
-              {Array.from(new Set(history.map((h) => h.month)))
+              <option value="">Toutes les périodes</option>
+              {Array.from(new Set(visibleHistory.map((h) => h.month)))
                 .sort((a, b) => b.localeCompare(a))
                 .map((mo) => (
                   <option key={mo} value={mo}>
@@ -547,6 +734,7 @@ function ReportsPage() {
           <ul className="divide-y">
             {filteredHistory.map((h) => {
               const label = periodLabelOf(h.month);
+              const docsCount = h.stats?.documents?.count ?? 0;
               return (
                 <li
                   key={h.id}
@@ -555,16 +743,14 @@ function ReportsPage() {
                   <button onClick={() => openHistory(h)} className="flex-1 text-left">
                     <div className="text-sm font-medium capitalize">{label}</div>
                     <div className="text-xs text-muted-foreground">
-                      Généré le {new Date(h.created_at).toLocaleString("fr-FR")} ·{" "}
-                      {h.stats?.documents?.count ?? 0} docs · {h.stats?.meetings?.count ?? 0}{" "}
-                      réunions
+                      Généré le {new Date(h.created_at).toLocaleString("fr-FR")} · {docsCount} docs
+                      {kind === "global" && ` · ${h.stats?.meetings?.count ?? 0} réunions`}
                     </div>
                   </button>
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => exportPdf(h.report, h.stats, h.month)}
-                    aria-label="Télécharger PDF"
+                    onClick={() => exportHistoryItem(h, "pdf")}
                     title="Télécharger PDF"
                   >
                     <FileText className="mr-1 h-4 w-4" /> PDF
@@ -572,8 +758,7 @@ function ReportsPage() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => exportDocx(h.report, h.stats, h.month)}
-                    aria-label="Télécharger DOCX"
+                    onClick={() => exportHistoryItem(h, "docx")}
                     title="Télécharger DOCX"
                   >
                     <Download className="mr-1 h-4 w-4" /> DOCX
@@ -595,7 +780,7 @@ function ReportsPage() {
 
       {!report && !loading && (
         <div className="rounded-lg border border-dashed p-12 text-center text-sm text-muted-foreground">
-          Sélectionnez un mois et cliquez sur « Générer », ou ouvrez un rapport de l'historique.
+          Sélectionnez une période et cliquez sur « Générer », ou ouvrez un rapport de l'historique.
         </div>
       )}
 
@@ -606,84 +791,11 @@ function ReportsPage() {
         </div>
       )}
 
-      {report && stats && (
-        <div className="space-y-6">
-          <section className="rounded-lg border bg-card p-5">
-            <h2 className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
-              Synthèse — {periodLabel}
-            </h2>
-            <p className="mt-2 text-base leading-relaxed">{report.executive_summary}</p>
-          </section>
-
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Stat
-              label="Documents"
-              value={stats.documents.count}
-              sub={fmtBytes(stats.documents.totalSize)}
-            />
-            <Stat label="Versions" value={stats.versions.count} />
-            <Stat label="Tâches" value={stats.tasks.count} />
-            <Stat label="Réunions" value={stats.meetings.count} />
-          </div>
-
-          <section className="rounded-lg border bg-card p-5">
-            <h3 className="mb-3 text-sm font-semibold">Points clés</h3>
-            <ul className="space-y-1.5 text-sm">
-              {report.key_points.map((k, i) => (
-                <li key={i} className="flex gap-2">
-                  <span className="text-primary">•</span>
-                  <span>{k}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          <section className="rounded-lg border bg-card p-5">
-            <h3 className="mb-3 text-sm font-semibold">Évolution des taux</h3>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="text-left text-xs uppercase text-muted-foreground">
-                  <tr>
-                    <th className="py-2">Devise</th>
-                    <th>Début</th>
-                    <th>Fin</th>
-                    <th>Min</th>
-                    <th>Max</th>
-                    <th>Moyenne</th>
-                    <th>Variation</th>
-                  </tr>
-                </thead>
-                <tbody className="font-mono">
-                  <RateRow label="USD → FC" s={stats.rates.usd_to_fc} />
-                  <RateRow label="EUR → USD" s={stats.rates.eur_to_usd} />
-                  <RateRow label="CHF → USD" s={stats.rates.chf_to_usd} />
-                </tbody>
-              </table>
-            </div>
-            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              {report.rate_analysis}
-            </p>
-          </section>
-
-          <section className="rounded-lg border bg-card p-5">
-            <h3 className="mb-3 text-sm font-semibold">Analyse de l'activité</h3>
-            <p className="text-sm leading-relaxed text-muted-foreground">
-              {report.activity_analysis}
-            </p>
-          </section>
-
-          <section className="rounded-lg border bg-card p-5">
-            <h3 className="mb-3 text-sm font-semibold">Recommandations</h3>
-            <ul className="space-y-1.5 text-sm">
-              {report.recommendations.map((r, i) => (
-                <li key={i} className="flex gap-2">
-                  <span className="text-primary">→</span>
-                  <span>{r}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-        </div>
+      {report && stats && kind === "global" && (
+        <GlobalReportView report={report as GlobalReport} stats={stats as GlobalStats} periodLabel={periodLabel} />
+      )}
+      {report && stats && kind === "documents" && (
+        <DocsReportView report={report as DocsReport} stats={stats as DocsStats} periodLabel={periodLabel} />
       )}
     </div>
   );
@@ -725,5 +837,190 @@ function RateRow({ label, s }: { label: string; s: RateStat | null }) {
         {s.variation.toFixed(2)} %
       </td>
     </tr>
+  );
+}
+
+function GlobalReportView({
+  report,
+  stats,
+  periodLabel,
+}: {
+  report: GlobalReport;
+  stats: GlobalStats;
+  periodLabel: string;
+}) {
+  return (
+    <div className="space-y-6">
+      <section className="rounded-lg border bg-card p-5">
+        <h2 className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
+          Synthèse — {periodLabel}
+        </h2>
+        <p className="mt-2 text-base leading-relaxed">{report.executive_summary}</p>
+      </section>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Stat label="Documents" value={stats.documents.count} sub={fmtBytes(stats.documents.totalSize)} />
+        <Stat label="Versions" value={stats.versions.count} />
+        <Stat label="Tâches" value={stats.tasks.count} />
+        <Stat label="Réunions" value={stats.meetings.count} />
+      </div>
+      <section className="rounded-lg border bg-card p-5">
+        <h3 className="mb-3 text-sm font-semibold">Points clés</h3>
+        <ul className="space-y-1.5 text-sm">
+          {report.key_points.map((k, i) => (
+            <li key={i} className="flex gap-2">
+              <span className="text-primary">•</span>
+              <span>{k}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+      <section className="rounded-lg border bg-card p-5">
+        <h3 className="mb-3 text-sm font-semibold">Évolution des taux</h3>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="text-left text-xs uppercase text-muted-foreground">
+              <tr>
+                <th className="py-2">Devise</th>
+                <th>Début</th>
+                <th>Fin</th>
+                <th>Min</th>
+                <th>Max</th>
+                <th>Moyenne</th>
+                <th>Variation</th>
+              </tr>
+            </thead>
+            <tbody className="font-mono">
+              <RateRow label="USD → FC" s={stats.rates.usd_to_fc} />
+              <RateRow label="EUR → USD" s={stats.rates.eur_to_usd} />
+              <RateRow label="CHF → USD" s={stats.rates.chf_to_usd} />
+            </tbody>
+          </table>
+        </div>
+        <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{report.rate_analysis}</p>
+      </section>
+      <section className="rounded-lg border bg-card p-5">
+        <h3 className="mb-3 text-sm font-semibold">Analyse de l'activité</h3>
+        <p className="text-sm leading-relaxed text-muted-foreground">{report.activity_analysis}</p>
+      </section>
+      <section className="rounded-lg border bg-card p-5">
+        <h3 className="mb-3 text-sm font-semibold">Recommandations</h3>
+        <ul className="space-y-1.5 text-sm">
+          {report.recommendations.map((r, i) => (
+            <li key={i} className="flex gap-2">
+              <span className="text-primary">→</span>
+              <span>{r}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </div>
+  );
+}
+
+function DocsReportView({
+  report,
+  stats,
+  periodLabel,
+}: {
+  report: DocsReport;
+  stats: DocsStats;
+  periodLabel: string;
+}) {
+  const cats = Object.entries(stats.documents.byCategory ?? {}).sort((a, b) => b[1] - a[1]);
+  const mimes = Object.entries(stats.documents.byMime ?? {}).sort((a, b) => b[1] - a[1]);
+  return (
+    <div className="space-y-6">
+      <section className="rounded-lg border bg-card p-5">
+        <h2 className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
+          Synthèse documents — {periodLabel}
+        </h2>
+        <p className="mt-2 text-base leading-relaxed">{report.executive_summary}</p>
+      </section>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <Stat
+          label="Documents créés"
+          value={stats.documents.count}
+          sub={fmtBytes(stats.documents.totalSize)}
+        />
+        <Stat label="Versions" value={stats.versions.count} sub={fmtBytes(stats.versions.totalSize)} />
+        <Stat label="Docs versionnés" value={stats.versions.docsWithVersions} />
+        <Stat label="Catégories" value={cats.length} />
+      </div>
+      <section className="rounded-lg border bg-card p-5">
+        <h3 className="mb-3 text-sm font-semibold">Points clés</h3>
+        <ul className="space-y-1.5 text-sm">
+          {report.key_points.map((k, i) => (
+            <li key={i} className="flex gap-2">
+              <span className="text-primary">•</span>
+              <span>{k}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+      <section className="rounded-lg border bg-card p-5">
+        <h3 className="mb-3 text-sm font-semibold">Répartition par catégorie</h3>
+        {cats.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Aucune catégorie sur la période.</p>
+        ) : (
+          <div className="grid gap-1.5 sm:grid-cols-2">
+            {cats.map(([k, v]) => (
+              <div key={k} className="flex items-center justify-between rounded border px-3 py-1.5 text-sm">
+                <span className="truncate">{k}</span>
+                <span className="font-mono text-xs text-muted-foreground">{v}</span>
+              </div>
+            ))}
+          </div>
+        )}
+        <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{report.categories_analysis}</p>
+      </section>
+      <section className="rounded-lg border bg-card p-5">
+        <h3 className="mb-3 text-sm font-semibold">Formats de fichiers</h3>
+        {mimes.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Aucun format détecté.</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {mimes.slice(0, 20).map(([k, v]) => (
+              <span
+                key={k}
+                className="rounded-full border bg-muted/50 px-2.5 py-0.5 text-xs"
+              >
+                {k} <span className="text-muted-foreground">· {v}</span>
+              </span>
+            ))}
+          </div>
+        )}
+        <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{report.formats_analysis}</p>
+      </section>
+      <section className="rounded-lg border bg-card p-5">
+        <h3 className="mb-3 text-sm font-semibold">Versioning</h3>
+        <p className="text-sm leading-relaxed text-muted-foreground">{report.versions_analysis}</p>
+      </section>
+      <section className="rounded-lg border bg-card p-5">
+        <h3 className="mb-3 text-sm font-semibold">Tags les plus utilisés</h3>
+        {(!stats.documents.topTags || stats.documents.topTags.length === 0) ? (
+          <p className="text-sm text-muted-foreground">Aucun tag sur la période.</p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {stats.documents.topTags.map((t) => (
+              <span key={t.tag} className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs text-primary">
+                #{t.tag} <span className="text-muted-foreground">· {t.count}</span>
+              </span>
+            ))}
+          </div>
+        )}
+        <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{report.tags_analysis}</p>
+      </section>
+      <section className="rounded-lg border bg-card p-5">
+        <h3 className="mb-3 text-sm font-semibold">Recommandations</h3>
+        <ul className="space-y-1.5 text-sm">
+          {report.recommendations.map((r, i) => (
+            <li key={i} className="flex gap-2">
+              <span className="text-primary">→</span>
+              <span>{r}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </div>
   );
 }
