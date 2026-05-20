@@ -368,26 +368,13 @@ serve(async (req) => {
       },
     };
 
-    // 4) Synthèse globale à partir des résumés individuels
-    const synthesisPrompt = `Tu es l'analyste documentaire de Kaayu Workspace. À partir des résumés individuels des documents de la ${periodLabel}, produis une synthèse globale en français centrée UNIQUEMENT sur le contenu des documents (sujets, thèmes, types de contenu, qualité, doublons éventuels). N'évoque ni les taux de change, ni les tâches, ni les réunions.
-
-Statistiques agrégées :
-${JSON.stringify({ ...stats, documents: { ...stats.documents, byMime, byCategory } }, null, 2)}
-
-Résumés par document (${perDocSummaries.length} fichiers analysés sur ${docs.length}) :
+    // 4) Synthèse unique des documents
+    const synthesisPrompt = `Tu es l'analyste documentaire de Kaayu Workspace. À partir des résumés individuels des documents de la ${periodLabel}, rédige UNE SEULE synthèse en français, fluide et structurée, qui regroupe et raconte ce que disent les documents de la période (sujets traités, contenus principaux, décisions, faits, chiffres clés, éventuelles incohérences ou doublons). N'évoque ni les taux de change, ni les tâches, ni les réunions, ni les statistiques de stockage. Ne fais pas une liste de fichiers ni un tableau ; produis un texte narratif organisé en paragraphes (avec sous-titres en gras si utile), de longueur adaptée au volume documentaire (typiquement 400 à 1200 mots).
+ 
+Résumés des documents (${perDocSummaries.length} fichiers analysés sur ${docs.length}) :
 ${JSON.stringify(perDocSummaries.map((s) => ({ name: s.name, category: (s as any).category, summary: s.summary, key_points: s.key_points })), null, 2)}
-
-Produis un rapport en JSON strict avec :
-- "executive_summary": 4-6 phrases de synthèse sur les contenus documentaires
-- "key_points": 5-8 points clés transversaux (thèmes récurrents, sujets dominants)
-- "categories_analysis": analyse de la répartition par catégorie (1 paragraphe)
-- "formats_analysis": analyse des formats et tailles (1 paragraphe)
-- "versions_analysis": analyse du versioning et collaboration (1 paragraphe)
-- "tags_analysis": analyse des tags (1 paragraphe court)
-- "content_themes": 3-6 thèmes/sujets majeurs détectés à travers les documents
-- "recommendations": 3-5 recommandations concrètes d'organisation/exploitation
-
-Réponds UNIQUEMENT avec du JSON valide.`;
+ 
+Réponds STRICTEMENT en JSON valide de la forme : {"synthesis": "<le texte de la synthèse, en markdown léger>"}.`;
 
     const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -395,7 +382,7 @@ Réponds UNIQUEMENT avec du JSON valide.`;
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
         messages: [
-          { role: "system", content: "Tu produis des rapports d'analyse en JSON valide uniquement." },
+          { role: "system", content: "Tu produis un texte de synthèse documentaire renvoyé strictement en JSON {\"synthesis\": \"...\"}." },
           { role: "user", content: synthesisPrompt },
         ],
         response_format: { type: "json_object" },
@@ -420,23 +407,14 @@ Réponds UNIQUEMENT avec du JSON valide.`;
 
     const aiJson = await aiRes.json();
     const raw = aiJson?.choices?.[0]?.message?.content ?? "{}";
-    let report: any;
+    let synthesis = "";
     try {
-      report = JSON.parse(raw);
+      const parsed = JSON.parse(raw);
+      synthesis = typeof parsed.synthesis === "string" ? parsed.synthesis : String(raw);
     } catch {
-      report = {
-        executive_summary: raw,
-        key_points: [],
-        categories_analysis: "",
-        formats_analysis: "",
-        versions_analysis: "",
-        tags_analysis: "",
-        content_themes: [],
-        recommendations: [],
-      };
+      synthesis = String(raw);
     }
-    // Inject per-document analyses into the report payload
-    report.per_document = perDocSummaries;
+    const report = { synthesis, per_document: perDocSummaries };
 
     return new Response(
       JSON.stringify({ month: periodKey, period: { start, end, label: periodLabel }, stats, report }),

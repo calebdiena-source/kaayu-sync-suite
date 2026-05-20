@@ -96,14 +96,7 @@ type PerDoc = {
   key_points: string[];
 };
 type DocsReport = {
-  executive_summary: string;
-  key_points: string[];
-  categories_analysis: string;
-  formats_analysis: string;
-  versions_analysis: string;
-  tags_analysis: string;
-  content_themes?: string[];
-  recommendations: string[];
+  synthesis: string;
   per_document?: PerDoc[];
 };
 
@@ -444,26 +437,11 @@ function ReportsPage() {
       new Paragraph({ children: [new TextRun({ text, ...opts })], spacing: { after: 120 } });
     const heading = (text: string) =>
       new Paragraph({ text, heading: HeadingLevel.HEADING_1, spacing: { before: 240, after: 120 } });
-    const catRows = Object.entries(s.documents.byCategory).map(
-      ([k, v]) =>
-        new TableRow({
-          children: [
-            new TableCell({ children: [para(k)] }),
-            new TableCell({ children: [para(String(v))] }),
-          ],
-        }),
-    );
-    const catTable = new Table({
-      width: { size: 100, type: WidthType.PERCENTAGE },
-      rows: [
-        new TableRow({
-          children: ["Catégorie", "Documents"].map(
-            (t) => new TableCell({ children: [para(t, { bold: true })] }),
-          ),
-        }),
-        ...catRows,
-      ],
-    });
+    const synthParas = (r.synthesis || "")
+      .split(/\n{2,}/)
+      .map((block) => block.trim())
+      .filter(Boolean)
+      .map((block) => para(block));
     const doc = new Document({
       sections: [
         {
@@ -472,41 +450,9 @@ function ReportsPage() {
               text: `Rapport documents — ${periodLabelOf(mo)}`,
               heading: HeadingLevel.TITLE,
             }),
-            para(`Généré le ${new Date().toLocaleString("fr-FR")} · Kaayu Workspace`),
-            heading("Synthèse exécutive"),
-            para(r.executive_summary),
-            heading("Points clés"),
-            ...r.key_points.map((p) => new Paragraph({ text: p, bullet: { level: 0 } })),
-            heading("Répartition par catégorie"),
-            para(r.categories_analysis),
-            catTable,
-            ...(r.content_themes && r.content_themes.length
-              ? [
-                  heading("Thèmes détectés"),
-                  ...r.content_themes.map((t) => new Paragraph({ text: t, bullet: { level: 0 } })),
-                ]
-              : []),
-            ...(r.per_document && r.per_document.length
-              ? [
-                  heading("Analyse fichier par fichier"),
-                  ...r.per_document.flatMap((d) => [
-                    new Paragraph({
-                      heading: HeadingLevel.HEADING_2,
-                      children: [new TextRun({ text: d.name, bold: true })],
-                      spacing: { before: 200, after: 80 },
-                    }),
-                    para(`${d.mime ?? "type inconnu"} · ${d.category ?? "sans catégorie"}`, {
-                      italics: true,
-                    }),
-                    para(d.summary || "—"),
-                    ...(d.key_points ?? []).map(
-                      (k) => new Paragraph({ text: k, bullet: { level: 0 } }),
-                    ),
-                  ]),
-                ]
-              : []),
-            heading("Recommandations"),
-            ...r.recommendations.map((p) => new Paragraph({ text: p, bullet: { level: 0 } })),
+            para(`Généré le ${new Date().toLocaleString("fr-FR")} · Kaayu Workspace · ${s.documents.count} document(s)`),
+            heading("Synthèse"),
+            ...(synthParas.length ? synthParas : [para("Aucune synthèse générée.")]),
           ],
         },
       ],
@@ -547,39 +493,19 @@ function ReportsPage() {
       y += 4;
     };
     writeText(`Rapport documents — ${periodLabelOf(mo)}`, 20, true, [10, 30, 80]);
-    writeText(`Généré le ${new Date().toLocaleString("fr-FR")} · Kaayu Workspace`, 9, false, [120, 120, 120]);
+    writeText(
+      `Généré le ${new Date().toLocaleString("fr-FR")} · Kaayu Workspace · ${s.documents.count} document(s)`,
+      9,
+      false,
+      [120, 120, 120],
+    );
     y += 8;
-    heading("Synthèse exécutive");
-    writeText(r.executive_summary);
-    heading("Points clés");
-    r.key_points.forEach((p) => writeText(`• ${p}`));
-    heading("Répartition par catégorie");
-    writeText(r.categories_analysis);
-    autoTable(pdf, {
-      startY: y + 6,
-      head: [["Catégorie", "Documents"]],
-      body: Object.entries(s.documents.byCategory).map(([k, v]) => [k, String(v)]),
-      styles: { font: "helvetica", fontSize: 9 },
-      headStyles: { fillColor: [20, 60, 120] },
-      margin: { left: margin, right: margin },
+    heading("Synthèse");
+    const blocks = (r.synthesis || "Aucune synthèse générée.").split(/\n{2,}/);
+    blocks.forEach((b) => {
+      writeText(b.trim());
+      y += 4;
     });
-    y = (pdf as any).lastAutoTable.finalY + 12;
-    if (r.content_themes && r.content_themes.length) {
-      heading("Thèmes détectés");
-      r.content_themes.forEach((t) => writeText(`• ${t}`));
-    }
-    if (r.per_document && r.per_document.length) {
-      heading("Analyse fichier par fichier");
-      r.per_document.forEach((d) => {
-        writeText(d.name, 12, true, [10, 30, 80]);
-        writeText(`${d.mime ?? "type inconnu"} · ${d.category ?? "sans catégorie"}`, 9, false, [120, 120, 120]);
-        writeText(d.summary || "—");
-        (d.key_points ?? []).forEach((k) => writeText(`• ${k}`, 10, false, [60, 60, 60]));
-        y += 4;
-      });
-    }
-    heading("Recommandations");
-    r.recommendations.forEach((p) => writeText(`→ ${p}`));
     pdf.save(`rapport-documents-kaayu-${stripKind(mo)}.pdf`);
     toast.success("Export .pdf téléchargé");
   };
@@ -964,112 +890,30 @@ function DocsReportView({
   stats: DocsStats;
   periodLabel: string;
 }) {
-  const cats = Object.entries(stats.documents.byCategory ?? {}).sort((a, b) => b[1] - a[1]);
+  const blocks = (report.synthesis || "").split(/\n{2,}/).map((b) => b.trim()).filter(Boolean);
   return (
     <div className="space-y-6">
       <section className="rounded-lg border bg-card p-5">
         <h2 className="text-sm font-medium uppercase tracking-wider text-muted-foreground">
           Synthèse documents — {periodLabel}
         </h2>
-        <p className="mt-2 text-base leading-relaxed">{report.executive_summary}</p>
-      </section>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <Stat
-          label="Documents créés"
-          value={stats.documents.count}
-          sub={fmtBytes(stats.documents.totalSize)}
-        />
-        <Stat label="Versions" value={stats.versions.count} sub={fmtBytes(stats.versions.totalSize)} />
-        <Stat label="Docs versionnés" value={stats.versions.docsWithVersions} />
-        <Stat label="Catégories" value={cats.length} />
-      </div>
-      <section className="rounded-lg border bg-card p-5">
-        <h3 className="mb-3 text-sm font-semibold">Points clés</h3>
-        <ul className="space-y-1.5 text-sm">
-          {report.key_points.map((k, i) => (
-            <li key={i} className="flex gap-2">
-              <span className="text-primary">•</span>
-              <span>{k}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
-      <section className="rounded-lg border bg-card p-5">
-        <h3 className="mb-3 text-sm font-semibold">Répartition par catégorie</h3>
-        {cats.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Aucune catégorie sur la période.</p>
-        ) : (
-          <div className="grid gap-1.5 sm:grid-cols-2">
-            {cats.map(([k, v]) => (
-              <div key={k} className="flex items-center justify-between rounded border px-3 py-1.5 text-sm">
-                <span className="truncate">{k}</span>
-                <span className="font-mono text-xs text-muted-foreground">{v}</span>
-              </div>
-            ))}
-          </div>
-        )}
-        <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{report.categories_analysis}</p>
-      </section>
-      {report.content_themes && report.content_themes.length > 0 && (
-        <section className="rounded-lg border bg-card p-5">
-          <h3 className="mb-3 text-sm font-semibold">Thèmes détectés dans les documents</h3>
-          <div className="flex flex-wrap gap-2">
-            {report.content_themes.map((t, i) => (
-              <span key={i} className="rounded-full bg-accent px-2.5 py-1 text-xs">
-                {t}
-              </span>
-            ))}
-          </div>
-        </section>
-      )}
-      {report.per_document && report.per_document.length > 0 && (
-        <section className="rounded-lg border bg-card p-5">
-          <h3 className="mb-1 text-sm font-semibold">Analyse fichier par fichier</h3>
-          <p className="mb-4 text-xs text-muted-foreground">
-            {report.per_document.length} document{report.per_document.length > 1 ? "s" : ""} analysé
-            {report.per_document.length > 1 ? "s" : ""}
-            {stats.documents.count > report.per_document.length
-              ? ` sur ${stats.documents.count} (limite atteinte)`
-              : ""}
-            .
-          </p>
-          <ul className="space-y-4">
-            {report.per_document.map((d) => (
-              <li key={d.id} className="rounded-md border bg-background p-3">
-                <div className="flex flex-wrap items-baseline justify-between gap-2">
-                  <div className="text-sm font-medium">{d.name}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {d.mime ?? "type ?"} · {d.category ?? "sans catégorie"}
-                  </div>
-                </div>
-                <p className="mt-1.5 text-sm leading-relaxed text-foreground/90">
-                  {d.summary || "—"}
-                </p>
-                {d.key_points && d.key_points.length > 0 && (
-                  <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
-                    {d.key_points.map((k, i) => (
-                      <li key={i} className="flex gap-1.5">
-                        <span className="text-primary">•</span>
-                        <span>{k}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-      <section className="rounded-lg border bg-card p-5">
-        <h3 className="mb-3 text-sm font-semibold">Recommandations</h3>
-        <ul className="space-y-1.5 text-sm">
-          {report.recommendations.map((r, i) => (
-            <li key={i} className="flex gap-2">
-              <span className="text-primary">→</span>
-              <span>{r}</span>
-            </li>
-          ))}
-        </ul>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {stats.documents.count} document{stats.documents.count > 1 ? "s" : ""} sur la période
+          {report.per_document && stats.documents.count > report.per_document.length
+            ? ` · ${report.per_document.length} analysé${report.per_document.length > 1 ? "s" : ""} (limite atteinte)`
+            : ""}
+        </p>
+        <div className="mt-4 space-y-3 text-sm leading-relaxed">
+          {blocks.length === 0 ? (
+            <p className="text-muted-foreground">Aucune synthèse générée.</p>
+          ) : (
+            blocks.map((b, i) => (
+              <p key={i} className="whitespace-pre-wrap">
+                {b}
+              </p>
+            ))
+          )}
+        </div>
       </section>
     </div>
   );
