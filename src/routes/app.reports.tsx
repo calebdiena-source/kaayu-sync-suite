@@ -194,15 +194,6 @@ function ReportsPage() {
     loadHistory();
   }, [user?.id]);
 
-  // Reset display when switching tab
-  useEffect(() => {
-    setReport(null);
-    setStats(null);
-    setActiveReportKind(null);
-    setActiveId(null);
-    setFilterMonth("");
-  }, [kind]);
-
   const changeKind = (next: "global" | "documents") => {
     setReport(null);
     setStats(null);
