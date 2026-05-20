@@ -573,7 +573,7 @@ function ReportsPage() {
         </div>
       </div>
 
-      <Tabs value={kind} onValueChange={(v) => setKind(v as any)}>
+      <Tabs value={kind} onValueChange={(v) => changeKind(v as "global" | "documents")}>
         <TabsList>
           <TabsTrigger value="global">
             <FileBarChart className="mr-1.5 h-4 w-4" /> Rapport global
@@ -668,7 +668,7 @@ function ReportsPage() {
           )}
           Générer
         </Button>
-        {report && stats && storageKey && (
+        {report && stats && activeReportKind === kind && storageKey && (
           <>
             <Button
               onClick={() => {
@@ -788,10 +788,10 @@ function ReportsPage() {
         </div>
       )}
 
-      {report && stats && kind === "global" && (
+      {report && stats && activeReportKind === "global" && kind === "global" && (
         <GlobalReportView report={report as GlobalReport} stats={stats as GlobalStats} periodLabel={periodLabel} />
       )}
-      {report && stats && kind === "documents" && (
+      {report && stats && activeReportKind === "documents" && kind === "documents" && (
         <DocsReportView report={report as DocsReport} stats={stats as DocsStats} periodLabel={periodLabel} />
       )}
     </div>
