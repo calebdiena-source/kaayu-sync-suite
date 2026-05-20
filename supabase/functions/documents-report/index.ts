@@ -99,6 +99,15 @@ async function extractOoxmlSharedText(bytes: Uint8Array, maxChars: number): Prom
   }
 }
 
+async function bytesToBase64(bytes: Uint8Array): Promise<string> {
+  let bin = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(bin);
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
