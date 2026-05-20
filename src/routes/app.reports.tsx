@@ -103,6 +103,89 @@ type DocsReport = {
 
 const DOCS_PREFIX = "docs:";
 
+const num = (value: unknown, fallback = 0) =>
+  typeof value === "number" && Number.isFinite(value) ? value : fallback;
+const stringList = (value: unknown) =>
+  Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+const recordOfNumbers = (value: unknown): Record<string, number> =>
+  value && typeof value === "object" && !Array.isArray(value)
+    ? Object.fromEntries(
+        Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, num(item)]),
+      )
+    : {};
+
+function normalizeRateStat(value: any): RateStat | null {
+  if (!value || typeof value !== "object") return null;
+  return {
+    first: num(value.first),
+    last: num(value.last),
+    min: num(value.min),
+    max: num(value.max),
+    avg: num(value.avg),
+    variation: num(value.variation),
+    count: num(value.count),
+  };
+}
+
+function normalizeGlobalStats(value: any): GlobalStats {
+  return {
+    documents: {
+      count: num(value?.documents?.count),
+      totalSize: num(value?.documents?.totalSize),
+      byCategory: recordOfNumbers(value?.documents?.byCategory),
+    },
+    versions: { count: num(value?.versions?.count) },
+    rates: {
+      usd_to_fc: normalizeRateStat(value?.rates?.usd_to_fc),
+      eur_to_usd: normalizeRateStat(value?.rates?.eur_to_usd),
+      chf_to_usd: normalizeRateStat(value?.rates?.chf_to_usd),
+      timeline: Array.isArray(value?.rates?.timeline) ? value.rates.timeline : [],
+    },
+    tasks: {
+      count: num(value?.tasks?.count),
+      byStatus: recordOfNumbers(value?.tasks?.byStatus),
+    },
+    meetings: { count: num(value?.meetings?.count) },
+  };
+}
+
+function normalizeGlobalReport(value: any): GlobalReport {
+  return {
+    executive_summary: typeof value?.executive_summary === "string" ? value.executive_summary : "",
+    key_points: stringList(value?.key_points),
+    rate_analysis: typeof value?.rate_analysis === "string" ? value.rate_analysis : "",
+    activity_analysis: typeof value?.activity_analysis === "string" ? value.activity_analysis : "",
+    recommendations: stringList(value?.recommendations),
+  };
+}
+
+function normalizeDocsStats(value: any): DocsStats {
+  return {
+    documents: {
+      count: num(value?.documents?.count),
+      analyzed: num(value?.documents?.analyzed),
+      totalSize: num(value?.documents?.totalSize),
+      byCategory: recordOfNumbers(value?.documents?.byCategory),
+      byMime: recordOfNumbers(value?.documents?.byMime),
+      topTags: Array.isArray(value?.documents?.topTags) ? value.documents.topTags : [],
+      timeline: Array.isArray(value?.documents?.timeline) ? value.documents.timeline : [],
+    },
+    versions: {
+      count: num(value?.versions?.count),
+      totalSize: num(value?.versions?.totalSize),
+      docsWithVersions: num(value?.versions?.docsWithVersions),
+    },
+  };
+}
+
+function normalizeDocsReport(value: any): DocsReport {
+  return {
+    synthesis: typeof value?.synthesis === "string" ? value.synthesis : "",
+    recommendations: stringList(value?.recommendations),
+    per_document: Array.isArray(value?.per_document) ? value.per_document : [],
+  };
+}
+
 function currentMonth() {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
@@ -157,6 +240,7 @@ function ReportsPage() {
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState<any>(null);
   const [report, setReport] = useState<any>(null);
+  const [activeReportKind, setActiveReportKind] = useState<"global" | "documents" | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [filterMonth, setFilterMonth] = useState<string>("");
@@ -193,13 +277,14 @@ function ReportsPage() {
     loadHistory();
   }, [user?.id]);
 
-  // Reset display when switching tab
-  useEffect(() => {
+  const changeKind = (next: "global" | "documents") => {
     setReport(null);
     setStats(null);
+    setActiveReportKind(null);
     setActiveId(null);
     setFilterMonth("");
-  }, [kind]);
+    setKind(next);
+  };
 
   const generate = async () => {
     if (!user) {
@@ -219,13 +304,15 @@ function ReportsPage() {
     setLoading(true);
     setReport(null);
     setStats(null);
+    setActiveReportKind(null);
     setActiveId(null);
     try {
       const { data, error } = await supabase.functions.invoke(fnName, { body });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      setStats(data.stats);
-      setReport(data.report);
+      setStats(kind === "global" ? normalizeGlobalStats(data.stats) : normalizeDocsStats(data.stats));
+      setReport(kind === "global" ? normalizeGlobalReport(data.report) : normalizeDocsReport(data.report));
+      setActiveReportKind(kind);
 
       await supabase
         .from("monthly_reports")
@@ -272,8 +359,9 @@ function ReportsPage() {
         setRange({ from: new Date(ay, am - 1, ad), to: new Date(by, bm - 1, bd) });
       }
     }
-    setStats(h.stats);
-    setReport(h.report);
+    setStats(k === "global" ? normalizeGlobalStats(h.stats) : normalizeDocsStats(h.stats));
+    setReport(k === "global" ? normalizeGlobalReport(h.report) : normalizeDocsReport(h.report));
+    setActiveReportKind(k);
     setActiveId(h.id);
     if (k === "global") {
       navigate({ to: "/app/reports/$id", params: { id: h.id } });
@@ -290,6 +378,7 @@ function ReportsPage() {
     if (activeId === id) {
       setReport(null);
       setStats(null);
+      setActiveReportKind(null);
       setActiveId(null);
     }
     setHistory((h) => h.filter((x) => x.id !== id));
@@ -558,7 +647,7 @@ function ReportsPage() {
         </div>
       </div>
 
-      <Tabs value={kind} onValueChange={(v) => setKind(v as any)}>
+      <Tabs value={kind} onValueChange={(v) => changeKind(v as "global" | "documents")}>
         <TabsList>
           <TabsTrigger value="global">
             <FileBarChart className="mr-1.5 h-4 w-4" /> Rapport global
@@ -653,7 +742,7 @@ function ReportsPage() {
           )}
           Générer
         </Button>
-        {report && stats && storageKey && (
+        {report && stats && activeReportKind === kind && storageKey && (
           <>
             <Button
               onClick={() => {
@@ -773,10 +862,10 @@ function ReportsPage() {
         </div>
       )}
 
-      {report && stats && kind === "global" && (
+      {report && stats && activeReportKind === "global" && kind === "global" && (
         <GlobalReportView report={report as GlobalReport} stats={stats as GlobalStats} periodLabel={periodLabel} />
       )}
-      {report && stats && kind === "documents" && (
+      {report && stats && activeReportKind === "documents" && kind === "documents" && (
         <DocsReportView report={report as DocsReport} stats={stats as DocsStats} periodLabel={periodLabel} />
       )}
     </div>
