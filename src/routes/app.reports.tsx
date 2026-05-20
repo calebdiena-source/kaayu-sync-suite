@@ -227,8 +227,8 @@ function ReportsPage() {
       const { data, error } = await supabase.functions.invoke(fnName, { body });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      setStats(data.stats);
-      setReport(data.report);
+      setStats(kind === "global" ? normalizeGlobalStats(data.stats) : normalizeDocsStats(data.stats));
+      setReport(kind === "global" ? normalizeGlobalReport(data.report) : normalizeDocsReport(data.report));
       setActiveReportKind(kind);
 
       await supabase
@@ -276,8 +276,8 @@ function ReportsPage() {
         setRange({ from: new Date(ay, am - 1, ad), to: new Date(by, bm - 1, bd) });
       }
     }
-    setStats(h.stats);
-    setReport(h.report);
+    setStats(k === "global" ? normalizeGlobalStats(h.stats) : normalizeDocsStats(h.stats));
+    setReport(k === "global" ? normalizeGlobalReport(h.report) : normalizeDocsReport(h.report));
     setActiveReportKind(k);
     setActiveId(h.id);
     if (k === "global") {
