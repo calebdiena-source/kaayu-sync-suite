@@ -322,14 +322,22 @@ function ReportViewer() {
             return;
           }
           const parsed = JSON.parse(raw);
-          const dStats = normalizeStats(parsed.stats);
-          const dReport = normalizeReport(parsed.report);
           const dMonth = typeof parsed.month === "string" ? parsed.month : "";
           if (!active) return;
           setMonth(dMonth);
-          setStats(dStats);
-          setReport(dReport);
-          setHtml(dReport.html || buildHtml(dReport, dStats, dMonth));
+          if (kindOf(dMonth) === "documents") {
+            const dStats = parsed.stats ?? {};
+            const dReport = parsed.report ?? { synthesis: "" };
+            setStats(dStats as any);
+            setReport(dReport as any);
+            setHtml(dReport.html || buildDocsHtml(dReport, dStats, dMonth));
+          } else {
+            const dStats = normalizeStats(parsed.stats);
+            const dReport = normalizeReport(parsed.report);
+            setStats(dStats);
+            setReport(dReport);
+            setHtml(dReport.html || buildHtml(dReport, dStats, dMonth));
+          }
           return;
         }
         const { data, error } = await supabase
@@ -343,12 +351,20 @@ function ReportViewer() {
           navigate({ to: "/app/reports" });
           return;
         }
-        const r = normalizeReport(data.report);
-        const s = normalizeStats(data.stats);
         setMonth(data.month);
-        setStats(s);
-        setReport(r);
-        setHtml(r.html || buildHtml(r, s, data.month));
+        if (kindOf(data.month) === "documents") {
+          const s = (data.stats ?? {}) as any;
+          const r = (data.report ?? { synthesis: "" }) as any;
+          setStats(s);
+          setReport(r);
+          setHtml(r.html || buildDocsHtml(r, s, data.month));
+        } else {
+          const r = normalizeReport(data.report);
+          const s = normalizeStats(data.stats);
+          setStats(s);
+          setReport(r);
+          setHtml(r.html || buildHtml(r, s, data.month));
+        }
       } catch (e: any) {
         toast.error(e?.message || "Erreur de chargement");
       } finally {
