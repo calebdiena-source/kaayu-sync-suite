@@ -409,7 +409,7 @@ function ReportViewer() {
         </Button>
         <h1 className="text-lg font-semibold">
           {isDraft ? "Brouillon — " : "Rapport — "}
-          {month ? monthLabelOf(month) : ""}
+          {month ? periodLabelOf(month) : ""}
         </h1>
         <div className="ml-auto flex flex-wrap gap-2">
           <Button size="sm" onClick={save} disabled={saving}>
