@@ -6,6 +6,43 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+const MAX_FILES = 40;            // hard cap to keep latency & cost predictable
+const MAX_CHARS_PER_FILE = 8000; // text excerpt per doc sent to AI
+const TEXTUAL_MIMES = [
+  "text/",
+  "application/json",
+  "application/xml",
+  "application/javascript",
+  "application/x-yaml",
+  "application/yaml",
+  "application/sql",
+  "application/csv",
+  "application/rtf",
+];
+
+function isTextual(mime?: string | null) {
+  if (!mime) return false;
+  const m = mime.toLowerCase();
+  return TEXTUAL_MIMES.some((p) => m.startsWith(p));
+}
+
+function isImage(mime?: string | null) {
+  return !!mime && mime.toLowerCase().startsWith("image/");
+}
+
+function isPdf(mime?: string | null) {
+  return !!mime && mime.toLowerCase().includes("pdf");
+}
+
+async function bytesToBase64(bytes: Uint8Array): Promise<string> {
+  let bin = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    bin += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(bin);
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -23,12 +60,14 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY non configurée");
 
     const authHeader = req.headers.get("Authorization") ?? "";
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       global: { headers: { Authorization: authHeader } },
     });
+    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     const {
       data: { user },
@@ -59,12 +98,14 @@ serve(async (req) => {
       periodLabel = `période du ${from} au ${to}`;
     }
 
+    // 1) Charger les documents accessibles à l'utilisateur dans la période
     const [docsRes, versionsRes] = await Promise.all([
       supabase
         .from("documents")
-        .select("id,name,category,mime_type,size_bytes,created_at,updated_at,tags,folder_id")
+        .select("id,name,category,mime_type,size_bytes,created_at,updated_at,tags,folder_id,storage_path,storage_provider")
         .gte("created_at", start)
-        .lt("created_at", end),
+        .lt("created_at", end)
+        .order("created_at", { ascending: true }),
       supabase
         .from("document_versions")
         .select("id,document_id,version_number,created_at,size_bytes,comment,mime_type")
@@ -72,9 +113,10 @@ serve(async (req) => {
         .lt("created_at", end),
     ]);
 
-    const docs = docsRes.data ?? [];
-    const versions = versionsRes.data ?? [];
+    const docs = (docsRes.data ?? []) as any[];
+    const versions = (versionsRes.data ?? []) as any[];
 
+    // Statistiques agrégées
     const byCategory = docs.reduce((acc: Record<string, number>, d: any) => {
       const k = d.category ?? "Sans catégorie";
       acc[k] = (acc[k] ?? 0) + 1;
@@ -86,9 +128,7 @@ serve(async (req) => {
       return acc;
     }, {});
     const tagCounts: Record<string, number> = {};
-    for (const d of docs as any[]) {
-      for (const t of d.tags ?? []) tagCounts[t] = (tagCounts[t] ?? 0) + 1;
-    }
+    for (const d of docs) for (const t of d.tags ?? []) tagCounts[t] = (tagCounts[t] ?? 0) + 1;
     const topTags = Object.entries(tagCounts)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 15)
@@ -99,7 +139,7 @@ serve(async (req) => {
     const docsWithVersions = new Set(versions.map((v: any) => v.document_id)).size;
 
     const dailyCounts: Record<string, number> = {};
-    for (const d of docs as any[]) {
+    for (const d of docs) {
       const day = (d.created_at as string).slice(0, 10);
       dailyCounts[day] = (dailyCounts[day] ?? 0) + 1;
     }
@@ -107,9 +147,131 @@ serve(async (req) => {
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([date, count]) => ({ date, count }));
 
+    // 2) Lecture du contenu de chaque document (limité)
+    const toAnalyze = docs.slice(0, MAX_FILES);
+    const fileContents = await Promise.all(
+      toAnalyze.map(async (d) => {
+        const base: any = {
+          id: d.id,
+          name: d.name,
+          category: d.category ?? null,
+          mime: d.mime_type ?? null,
+          size: d.size_bytes ?? null,
+          created_at: d.created_at,
+          tags: d.tags ?? [],
+        };
+        try {
+          if (d.storage_provider && d.storage_provider !== "supabase") {
+            return { ...base, kind: "metadata", note: "Fichier externe non lu" };
+          }
+          if (!d.storage_path) return { ...base, kind: "metadata", note: "Aucun chemin de stockage" };
+
+          const dl = await supabaseAdmin.storage.from("documents").download(d.storage_path);
+          if (dl.error || !dl.data) {
+            return { ...base, kind: "metadata", note: `Téléchargement impossible: ${dl.error?.message ?? "inconnu"}` };
+          }
+          const ab = await dl.data.arrayBuffer();
+          const bytes = new Uint8Array(ab);
+
+          if (isTextual(d.mime_type)) {
+            const text = new TextDecoder("utf-8", { fatal: false }).decode(bytes).slice(0, MAX_CHARS_PER_FILE);
+            return { ...base, kind: "text", content: text };
+          }
+          if (isImage(d.mime_type)) {
+            // Skip very large images
+            if (bytes.byteLength > 4 * 1024 * 1024) {
+              return { ...base, kind: "metadata", note: "Image trop volumineuse pour analyse" };
+            }
+            const b64 = await bytesToBase64(bytes);
+            return { ...base, kind: "image", dataUrl: `data:${d.mime_type};base64,${b64}` };
+          }
+          if (isPdf(d.mime_type)) {
+            // Heuristique simple: extraction de chaînes ASCII imprimables dans le PDF
+            const decoded = new TextDecoder("latin1").decode(bytes);
+            const matches = decoded.match(/[\x20-\x7E\u00A0-\u024F\n\r\t]{4,}/g) ?? [];
+            const text = matches.join("\n").replace(/\s+\n/g, "\n").slice(0, MAX_CHARS_PER_FILE);
+            return { ...base, kind: "pdf_text", content: text };
+          }
+          return { ...base, kind: "metadata", note: "Type non lisible automatiquement" };
+        } catch (e: any) {
+          return { ...base, kind: "metadata", note: `Erreur de lecture: ${e?.message ?? "inconnue"}` };
+        }
+      }),
+    );
+
+    // 3) Résumer chaque document via l'IA (parallélisé, 1 appel par doc)
+    const perDocSummaries = await Promise.all(
+      fileContents.map(async (f) => {
+        const id = f.id;
+        const header = `Nom: ${f.name}\nType: ${f.mime ?? "inconnu"}\nCatégorie: ${f.category ?? "—"}\nTags: ${(f.tags ?? []).join(", ") || "—"}\nCréé le: ${f.created_at}`;
+
+        let userContent: any;
+        if (f.kind === "text" || f.kind === "pdf_text") {
+          if (!f.content || f.content.trim().length < 20) {
+            return {
+              id,
+              name: f.name,
+              summary: f.kind === "pdf_text"
+                ? "PDF probablement scanné/sans texte extractible."
+                : "Document vide ou trop court pour analyse.",
+              key_points: [],
+            };
+          }
+          userContent = `${header}\n\nContenu extrait (tronqué):\n"""\n${f.content}\n"""\n\nRéponds en JSON: {"summary": "résumé 2-4 phrases", "key_points": ["3 à 6 puces"]}`;
+        } else if (f.kind === "image") {
+          userContent = [
+            { type: "text", text: `${header}\n\nAnalyse le contenu visible de l'image (texte, schémas, sujet) et réponds en JSON: {"summary": "résumé 2-4 phrases", "key_points": ["3 à 6 puces"]}` },
+            { type: "image_url", image_url: { url: f.dataUrl } },
+          ];
+        } else {
+          return {
+            id,
+            name: f.name,
+            summary: f.note ?? "Contenu non analysé.",
+            key_points: [],
+          };
+        }
+
+        try {
+          const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: "google/gemini-2.5-flash",
+              messages: [
+                { role: "system", content: "Tu es un analyste documentaire. Réponds STRICTEMENT en JSON valide, en français." },
+                { role: "user", content: userContent },
+              ],
+              response_format: { type: "json_object" },
+            }),
+          });
+          if (!r.ok) {
+            const t = await r.text();
+            console.error("per-doc AI error", r.status, t.slice(0, 200));
+            return { id, name: f.name, summary: `Analyse indisponible (${r.status}).`, key_points: [] };
+          }
+          const j = await r.json();
+          const raw = j?.choices?.[0]?.message?.content ?? "{}";
+          let parsed: any = {};
+          try { parsed = JSON.parse(raw); } catch { parsed = { summary: String(raw).slice(0, 400), key_points: [] }; }
+          return {
+            id,
+            name: f.name,
+            category: f.category,
+            mime: f.mime,
+            summary: typeof parsed.summary === "string" ? parsed.summary : "",
+            key_points: Array.isArray(parsed.key_points) ? parsed.key_points.filter((x: any) => typeof x === "string").slice(0, 8) : [],
+          };
+        } catch (e: any) {
+          return { id, name: f.name, summary: `Erreur d'analyse: ${e?.message ?? "inconnue"}`, key_points: [] };
+        }
+      }),
+    );
+
     const stats = {
       documents: {
         count: docs.length,
+        analyzed: perDocSummaries.length,
         totalSize,
         byCategory,
         byMime,
@@ -123,23 +285,26 @@ serve(async (req) => {
       },
     };
 
-    const prompt = `Tu es l'analyste documentaire de Kaayu Workspace. Analyse UNIQUEMENT l'activité documentaire de la ${periodLabel} et produis un rapport professionnel en français, exclusivement centré sur les documents (création, catégorisation, versions, types de fichiers, tags). N'évoque ni les taux de change, ni les tâches, ni les réunions.
+    // 4) Synthèse globale à partir des résumés individuels
+    const synthesisPrompt = `Tu es l'analyste documentaire de Kaayu Workspace. À partir des résumés individuels des documents de la ${periodLabel}, produis une synthèse globale en français centrée UNIQUEMENT sur le contenu des documents (sujets, thèmes, types de contenu, qualité, doublons éventuels). N'évoque ni les taux de change, ni les tâches, ni les réunions.
 
-Statistiques documentaires :
-${JSON.stringify(stats, null, 2)}
+Statistiques agrégées :
+${JSON.stringify({ ...stats, documents: { ...stats.documents, byMime, byCategory } }, null, 2)}
 
-Échantillon de documents : ${JSON.stringify(docs.slice(0, 30).map((d: any) => ({ name: d.name, category: d.category, mime: d.mime_type, size: d.size_bytes, tags: d.tags, created: d.created_at })))}
+Résumés par document (${perDocSummaries.length} fichiers analysés sur ${docs.length}) :
+${JSON.stringify(perDocSummaries.map((s) => ({ name: s.name, category: (s as any).category, summary: s.summary, key_points: s.key_points })), null, 2)}
 
 Produis un rapport en JSON strict avec :
-- "executive_summary": 3-4 phrases de synthèse sur l'activité documentaire
-- "key_points": tableau de 5-8 points clés courts
+- "executive_summary": 4-6 phrases de synthèse sur les contenus documentaires
+- "key_points": 5-8 points clés transversaux (thèmes récurrents, sujets dominants)
 - "categories_analysis": analyse de la répartition par catégorie (1 paragraphe)
-- "formats_analysis": analyse des types de fichiers et tailles (1 paragraphe)
+- "formats_analysis": analyse des formats et tailles (1 paragraphe)
 - "versions_analysis": analyse du versioning et collaboration (1 paragraphe)
-- "tags_analysis": analyse des tags les plus utilisés (1 paragraphe court)
-- "recommendations": 3-5 recommandations concrètes pour mieux organiser/gérer les documents
+- "tags_analysis": analyse des tags (1 paragraphe court)
+- "content_themes": 3-6 thèmes/sujets majeurs détectés à travers les documents
+- "recommendations": 3-5 recommandations concrètes d'organisation/exploitation
 
-Réponds UNIQUEMENT avec le JSON valide, sans markdown.`;
+Réponds UNIQUEMENT avec du JSON valide.`;
 
     const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -148,7 +313,7 @@ Réponds UNIQUEMENT avec le JSON valide, sans markdown.`;
         model: "google/gemini-2.5-flash",
         messages: [
           { role: "system", content: "Tu produis des rapports d'analyse en JSON valide uniquement." },
-          { role: "user", content: prompt },
+          { role: "user", content: synthesisPrompt },
         ],
         response_format: { type: "json_object" },
       }),
@@ -183,9 +348,12 @@ Réponds UNIQUEMENT avec le JSON valide, sans markdown.`;
         formats_analysis: "",
         versions_analysis: "",
         tags_analysis: "",
+        content_themes: [],
         recommendations: [],
       };
     }
+    // Inject per-document analyses into the report payload
+    report.per_document = perDocSummaries;
 
     return new Response(
       JSON.stringify({ month: periodKey, period: { start, end, label: periodLabel }, stats, report }),
