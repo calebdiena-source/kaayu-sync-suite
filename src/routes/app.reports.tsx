@@ -97,6 +97,7 @@ type PerDoc = {
 };
 type DocsReport = {
   synthesis: string;
+  recommendations?: string[];
   per_document?: PerDoc[];
 };
 
