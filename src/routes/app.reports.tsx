@@ -1060,6 +1060,56 @@ function DocsReportView({
         )}
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{report.tags_analysis}</p>
       </section>
+      {report.content_themes && report.content_themes.length > 0 && (
+        <section className="rounded-lg border bg-card p-5">
+          <h3 className="mb-3 text-sm font-semibold">Thèmes détectés dans les documents</h3>
+          <div className="flex flex-wrap gap-2">
+            {report.content_themes.map((t, i) => (
+              <span key={i} className="rounded-full bg-accent px-2.5 py-1 text-xs">
+                {t}
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
+      {report.per_document && report.per_document.length > 0 && (
+        <section className="rounded-lg border bg-card p-5">
+          <h3 className="mb-1 text-sm font-semibold">Analyse fichier par fichier</h3>
+          <p className="mb-4 text-xs text-muted-foreground">
+            {report.per_document.length} document{report.per_document.length > 1 ? "s" : ""} analysé
+            {report.per_document.length > 1 ? "s" : ""}
+            {stats.documents.count > report.per_document.length
+              ? ` sur ${stats.documents.count} (limite atteinte)`
+              : ""}
+            .
+          </p>
+          <ul className="space-y-4">
+            {report.per_document.map((d) => (
+              <li key={d.id} className="rounded-md border bg-background p-3">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <div className="text-sm font-medium">{d.name}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {d.mime ?? "type ?"} · {d.category ?? "sans catégorie"}
+                  </div>
+                </div>
+                <p className="mt-1.5 text-sm leading-relaxed text-foreground/90">
+                  {d.summary || "—"}
+                </p>
+                {d.key_points && d.key_points.length > 0 && (
+                  <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                    {d.key_points.map((k, i) => (
+                      <li key={i} className="flex gap-1.5">
+                        <span className="text-primary">•</span>
+                        <span>{k}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <section className="rounded-lg border bg-card p-5">
         <h3 className="mb-3 text-sm font-semibold">Recommandations</h3>
         <ul className="space-y-1.5 text-sm">
