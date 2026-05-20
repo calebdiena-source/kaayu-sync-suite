@@ -655,18 +655,26 @@ function ReportsPage() {
         </Button>
         {report && stats && storageKey && (
           <>
-            {kind === "global" && (
-              <Button
-                onClick={() =>
-                  navigate({
-                    to: "/app/reports/$id",
-                    params: { id: activeId ?? "new" },
-                  })
+            <Button
+              onClick={() => {
+                if (!activeId) {
+                  try {
+                    sessionStorage.setItem(
+                      "kaayu:report:draft",
+                      JSON.stringify({ month: storageKey, stats, report, kind }),
+                    );
+                  } catch {
+                    // ignore
+                  }
                 }
-              >
-                <Pencil className="mr-2 h-4 w-4" /> Ouvrir dans l'éditeur
-              </Button>
-            )}
+                navigate({
+                  to: "/app/reports/$id",
+                  params: { id: activeId ?? "new" },
+                });
+              }}
+            >
+              <Pencil className="mr-2 h-4 w-4" /> Ouvrir dans l'éditeur
+            </Button>
             <Button variant="outline" onClick={() => exportCurrent("docx")}>
               <Download className="mr-2 h-4 w-4" /> .docx
             </Button>
