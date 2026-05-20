@@ -322,7 +322,7 @@ serve(async (req) => {
     const perDocSummaries = await Promise.all(
       docsForAi.map(async (f) => {
         const id = f.id;
-        const header = `Nom: ${f.name}\nType: ${f.mime ?? "inconnu"}\nCatégorie: ${f.category ?? "—"}\nTags: ${(f.tags ?? []).join(", ") || "—"}\nCréé le: ${f.created_at}`;
+        const header = `Nom: ${f.name}\nType: ${f.mime ?? "inconnu"}\nCatégorie: ${f.category ?? "—"}\nTags: ${(f.tags ?? []).join(", ") || "—"}\nDate du document: ${f.doc_date ?? "(non détectée, fallback création: " + (f.created_at?.slice(0, 10) ?? "—") + ")"}`;
 
         let userContent: any;
         if (f.kind === "text" || f.kind === "pdf_text") {
