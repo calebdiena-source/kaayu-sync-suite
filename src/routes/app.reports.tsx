@@ -480,12 +480,6 @@ function ReportsPage() {
             heading("Répartition par catégorie"),
             para(r.categories_analysis),
             catTable,
-            heading("Formats et tailles"),
-            para(r.formats_analysis),
-            heading("Versioning"),
-            para(r.versions_analysis),
-            heading("Tags"),
-            para(r.tags_analysis),
             ...(r.content_themes && r.content_themes.length
               ? [
                   heading("Thèmes détectés"),
@@ -570,12 +564,6 @@ function ReportsPage() {
       margin: { left: margin, right: margin },
     });
     y = (pdf as any).lastAutoTable.finalY + 12;
-    heading("Formats et tailles");
-    writeText(r.formats_analysis);
-    heading("Versioning");
-    writeText(r.versions_analysis);
-    heading("Tags");
-    writeText(r.tags_analysis);
     if (r.content_themes && r.content_themes.length) {
       heading("Thèmes détectés");
       r.content_themes.forEach((t) => writeText(`• ${t}`));
@@ -977,7 +965,6 @@ function DocsReportView({
   periodLabel: string;
 }) {
   const cats = Object.entries(stats.documents.byCategory ?? {}).sort((a, b) => b[1] - a[1]);
-  const mimes = Object.entries(stats.documents.byMime ?? {}).sort((a, b) => b[1] - a[1]);
   return (
     <div className="space-y-6">
       <section className="rounded-lg border bg-card p-5">
@@ -1022,43 +1009,6 @@ function DocsReportView({
           </div>
         )}
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{report.categories_analysis}</p>
-      </section>
-      <section className="rounded-lg border bg-card p-5">
-        <h3 className="mb-3 text-sm font-semibold">Formats de fichiers</h3>
-        {mimes.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Aucun format détecté.</p>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {mimes.slice(0, 20).map(([k, v]) => (
-              <span
-                key={k}
-                className="rounded-full border bg-muted/50 px-2.5 py-0.5 text-xs"
-              >
-                {k} <span className="text-muted-foreground">· {v}</span>
-              </span>
-            ))}
-          </div>
-        )}
-        <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{report.formats_analysis}</p>
-      </section>
-      <section className="rounded-lg border bg-card p-5">
-        <h3 className="mb-3 text-sm font-semibold">Versioning</h3>
-        <p className="text-sm leading-relaxed text-muted-foreground">{report.versions_analysis}</p>
-      </section>
-      <section className="rounded-lg border bg-card p-5">
-        <h3 className="mb-3 text-sm font-semibold">Tags les plus utilisés</h3>
-        {(!stats.documents.topTags || stats.documents.topTags.length === 0) ? (
-          <p className="text-sm text-muted-foreground">Aucun tag sur la période.</p>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {stats.documents.topTags.map((t) => (
-              <span key={t.tag} className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs text-primary">
-                #{t.tag} <span className="text-muted-foreground">· {t.count}</span>
-              </span>
-            ))}
-          </div>
-        )}
-        <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{report.tags_analysis}</p>
       </section>
       {report.content_themes && report.content_themes.length > 0 && (
         <section className="rounded-lg border bg-card p-5">

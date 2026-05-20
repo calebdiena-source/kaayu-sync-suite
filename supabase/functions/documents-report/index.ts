@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import JSZip from "https://esm.sh/jszip@3.10.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -32,6 +33,70 @@ function isImage(mime?: string | null) {
 
 function isPdf(mime?: string | null) {
   return !!mime && mime.toLowerCase().includes("pdf");
+}
+
+function isDocx(mime?: string | null, name?: string | null) {
+  const m = (mime ?? "").toLowerCase();
+  if (m.includes("officedocument.wordprocessingml.document")) return true;
+  if (m === "application/msword") return true;
+  return !!name && /\.docx?$/i.test(name);
+}
+
+function isOfficeOpenXml(mime?: string | null, name?: string | null) {
+  const m = (mime ?? "").toLowerCase();
+  if (m.includes("openxmlformats-officedocument")) return true;
+  return !!name && /\.(xlsx|pptx)$/i.test(name);
+}
+
+async function extractDocxText(bytes: Uint8Array, maxChars: number): Promise<string> {
+  const zip = await JSZip.loadAsync(bytes);
+  const parts: string[] = [];
+  const files = ["word/document.xml"];
+  // also include headers/footers if present
+  zip.forEach((path) => {
+    if (/^word\/(header|footer)\d*\.xml$/.test(path)) files.push(path);
+  });
+  for (const p of files) {
+    const f = zip.file(p);
+    if (!f) continue;
+    const xml = await f.async("string");
+    // paragraphs separated by w:p, runs by w:t
+    const paragraphs = xml.split(/<w:p[ >]/);
+    for (const para of paragraphs) {
+      const texts = [...para.matchAll(/<w:t[^>]*>([\s\S]*?)<\/w:t>/g)].map((m) =>
+        m[1]
+          .replace(/&amp;/g, "&")
+          .replace(/&lt;/g, "<")
+          .replace(/&gt;/g, ">")
+          .replace(/&quot;/g, '"')
+          .replace(/&apos;/g, "'"),
+      );
+      if (texts.length) parts.push(texts.join(""));
+    }
+    if (parts.join("\n").length > maxChars) break;
+  }
+  return parts.join("\n").slice(0, maxChars);
+}
+
+async function extractOoxmlSharedText(bytes: Uint8Array, maxChars: number): Promise<string> {
+  // Generic fallback for xlsx/pptx: concatenate all <t> / <a:t> texts
+  try {
+    const zip = await JSZip.loadAsync(bytes);
+    const parts: string[] = [];
+    const targets: string[] = [];
+    zip.forEach((path) => {
+      if (/\.xml$/.test(path) && /(sharedStrings|sheet|slide|notesSlide)/i.test(path)) targets.push(path);
+    });
+    for (const p of targets) {
+      const xml = await zip.file(p)!.async("string");
+      const texts = [...xml.matchAll(/<(?:a:)?t[^>]*>([\s\S]*?)<\/(?:a:)?t>/g)].map((m) => m[1]);
+      if (texts.length) parts.push(texts.join(" "));
+      if (parts.join("\n").length > maxChars) break;
+    }
+    return parts.join("\n").slice(0, maxChars);
+  } catch {
+    return "";
+  }
 }
 
 async function bytesToBase64(bytes: Uint8Array): Promise<string> {
@@ -191,6 +256,24 @@ serve(async (req) => {
             const matches = decoded.match(/[\x20-\x7E\u00A0-\u024F\n\r\t]{4,}/g) ?? [];
             const text = matches.join("\n").replace(/\s+\n/g, "\n").slice(0, MAX_CHARS_PER_FILE);
             return { ...base, kind: "pdf_text", content: text };
+          }
+          if (isDocx(d.mime_type, d.name)) {
+            try {
+              const text = await extractDocxText(bytes, MAX_CHARS_PER_FILE);
+              if (text.trim().length >= 20) {
+                return { ...base, kind: "text", content: text };
+              }
+              return { ...base, kind: "metadata", note: "DOCX sans texte extractible" };
+            } catch (e: any) {
+              return { ...base, kind: "metadata", note: `DOCX illisible: ${e?.message ?? "inconnu"}` };
+            }
+          }
+          if (isOfficeOpenXml(d.mime_type, d.name)) {
+            const text = await extractOoxmlSharedText(bytes, MAX_CHARS_PER_FILE);
+            if (text.trim().length >= 20) {
+              return { ...base, kind: "text", content: text };
+            }
+            return { ...base, kind: "metadata", note: "Document Office sans texte extractible" };
           }
           return { ...base, kind: "metadata", note: "Type non lisible automatiquement" };
         } catch (e: any) {
