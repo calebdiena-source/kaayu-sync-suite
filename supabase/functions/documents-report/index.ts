@@ -252,9 +252,75 @@ serve(async (req) => {
       }),
     );
 
+    // 2bis) Extraire la date INSCRITE dans le document (en-tête « TAUX DU JOUR — JJ/MM/AAAA »)
+    //       et filtrer selon la période demandée.
+    const extractDocDate = (text?: string | null): string | null => {
+      if (!text) return null;
+      // 1) en-tête taux du jour
+      let m = text.match(/TAUX\s+DU\s+JOUR[^0-9]*?(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})/i);
+      // 2) fallback: première date FR du document
+      if (!m) m = text.match(/\b(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})\b/);
+      // 3) fallback: première date ISO
+      if (!m) {
+        const iso = text.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
+        if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+        return null;
+      }
+      let [, dd, mm, yy] = m;
+      let year = yy.length === 2 ? `20${yy}` : yy;
+      const d = dd.padStart(2, "0");
+      const mo = mm.padStart(2, "0");
+      return `${year}-${mo}-${d}`;
+    };
+
+    const withDocDate = fileContents.map((f: any) => {
+      const text = typeof f.content === "string" ? f.content : "";
+      const docDate = extractDocDate(text);
+      return { ...f, doc_date: docDate, used_date: docDate ?? (f.created_at?.slice(0, 10) ?? null) };
+    });
+
+    // Filtre: date du document (ou created_at en secours) doit être dans [start, end)
+    const inPeriod = withDocDate.filter((f: any) => {
+      const d = f.used_date;
+      return typeof d === "string" && d >= start && d < end;
+    });
+
+    // Cap après filtrage pour limiter le coût IA
+    const docsForAi = inPeriod.slice(0, MAX_FILES);
+    const docs = docsForAi; // utilisé pour stats & message d'agrégation
+
+    // Statistiques agrégées (sur les documents de la période)
+    const byCategory = docs.reduce((acc: Record<string, number>, d: any) => {
+      const k = d.category ?? "Sans catégorie";
+      acc[k] = (acc[k] ?? 0) + 1;
+      return acc;
+    }, {});
+    const byMime = docs.reduce((acc: Record<string, number>, d: any) => {
+      const k = (d.mime ?? "inconnu").split(";")[0];
+      acc[k] = (acc[k] ?? 0) + 1;
+      return acc;
+    }, {});
+    const tagCounts: Record<string, number> = {};
+    for (const d of docs) for (const t of d.tags ?? []) tagCounts[t] = (tagCounts[t] ?? 0) + 1;
+    const topTags = Object.entries(tagCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 15)
+      .map(([tag, count]) => ({ tag, count }));
+    const totalSize = docs.reduce((a: number, d: any) => a + (d.size ?? 0), 0);
+    const versionsSize = versions.reduce((a: number, v: any) => a + (v.size_bytes ?? 0), 0);
+    const docsWithVersions = new Set(versions.map((v: any) => v.document_id)).size;
+    const dailyCounts: Record<string, number> = {};
+    for (const d of docs) {
+      const day = d.used_date as string;
+      if (day) dailyCounts[day] = (dailyCounts[day] ?? 0) + 1;
+    }
+    const timeline = Object.entries(dailyCounts)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([date, count]) => ({ date, count }));
+
     // 3) Résumer chaque document via l'IA (parallélisé, 1 appel par doc)
     const perDocSummaries = await Promise.all(
-      fileContents.map(async (f) => {
+      docsForAi.map(async (f) => {
         const id = f.id;
         const header = `Nom: ${f.name}\nType: ${f.mime ?? "inconnu"}\nCatégorie: ${f.category ?? "—"}\nTags: ${(f.tags ?? []).join(", ") || "—"}\nCréé le: ${f.created_at}`;
 
