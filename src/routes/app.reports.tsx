@@ -457,6 +457,11 @@ function ReportsPage() {
         ...catRows,
       ],
     });
+    const synthParas = (r.synthesis || "")
+      .split(/\n{2,}/)
+      .map((block) => block.trim())
+      .filter(Boolean)
+      .map((block) => para(block));
     const doc = new Document({
       sections: [
         {
@@ -465,41 +470,9 @@ function ReportsPage() {
               text: `Rapport documents — ${periodLabelOf(mo)}`,
               heading: HeadingLevel.TITLE,
             }),
-            para(`Généré le ${new Date().toLocaleString("fr-FR")} · Kaayu Workspace`),
-            heading("Synthèse exécutive"),
-            para(r.executive_summary),
-            heading("Points clés"),
-            ...r.key_points.map((p) => new Paragraph({ text: p, bullet: { level: 0 } })),
-            heading("Répartition par catégorie"),
-            para(r.categories_analysis),
-            catTable,
-            ...(r.content_themes && r.content_themes.length
-              ? [
-                  heading("Thèmes détectés"),
-                  ...r.content_themes.map((t) => new Paragraph({ text: t, bullet: { level: 0 } })),
-                ]
-              : []),
-            ...(r.per_document && r.per_document.length
-              ? [
-                  heading("Analyse fichier par fichier"),
-                  ...r.per_document.flatMap((d) => [
-                    new Paragraph({
-                      heading: HeadingLevel.HEADING_2,
-                      children: [new TextRun({ text: d.name, bold: true })],
-                      spacing: { before: 200, after: 80 },
-                    }),
-                    para(`${d.mime ?? "type inconnu"} · ${d.category ?? "sans catégorie"}`, {
-                      italics: true,
-                    }),
-                    para(d.summary || "—"),
-                    ...(d.key_points ?? []).map(
-                      (k) => new Paragraph({ text: k, bullet: { level: 0 } }),
-                    ),
-                  ]),
-                ]
-              : []),
-            heading("Recommandations"),
-            ...r.recommendations.map((p) => new Paragraph({ text: p, bullet: { level: 0 } })),
+            para(`Généré le ${new Date().toLocaleString("fr-FR")} · Kaayu Workspace · ${s.documents.count} document(s)`),
+            heading("Synthèse"),
+            ...(synthParas.length ? synthParas : [para("Aucune synthèse générée.")]),
           ],
         },
       ],
