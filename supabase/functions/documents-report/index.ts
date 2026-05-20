@@ -163,14 +163,15 @@ serve(async (req) => {
       periodLabel = `période du ${from} au ${to}`;
     }
 
-    // 1) Charger les documents accessibles à l'utilisateur dans la période
+    // 1) Charger TOUS les documents accessibles à l'utilisateur. La période
+    //    sera filtrée selon la date INSCRITE DANS le document (en-tête taux),
+    //    pas selon la date d'enregistrement dans l'application.
     const [docsRes, versionsRes] = await Promise.all([
       supabase
         .from("documents")
         .select("id,name,category,mime_type,size_bytes,created_at,updated_at,tags,folder_id,storage_path,storage_provider")
-        .gte("created_at", start)
-        .lt("created_at", end)
-        .order("created_at", { ascending: true }),
+        .order("created_at", { ascending: false })
+        .limit(300),
       supabase
         .from("document_versions")
         .select("id,document_id,version_number,created_at,size_bytes,comment,mime_type")
@@ -178,42 +179,11 @@ serve(async (req) => {
         .lt("created_at", end),
     ]);
 
-    const docs = (docsRes.data ?? []) as any[];
+    const allDocs = (docsRes.data ?? []) as any[];
     const versions = (versionsRes.data ?? []) as any[];
 
-    // Statistiques agrégées
-    const byCategory = docs.reduce((acc: Record<string, number>, d: any) => {
-      const k = d.category ?? "Sans catégorie";
-      acc[k] = (acc[k] ?? 0) + 1;
-      return acc;
-    }, {});
-    const byMime = docs.reduce((acc: Record<string, number>, d: any) => {
-      const k = (d.mime_type ?? "inconnu").split(";")[0];
-      acc[k] = (acc[k] ?? 0) + 1;
-      return acc;
-    }, {});
-    const tagCounts: Record<string, number> = {};
-    for (const d of docs) for (const t of d.tags ?? []) tagCounts[t] = (tagCounts[t] ?? 0) + 1;
-    const topTags = Object.entries(tagCounts)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 15)
-      .map(([tag, count]) => ({ tag, count }));
-
-    const totalSize = docs.reduce((a: number, d: any) => a + (d.size_bytes ?? 0), 0);
-    const versionsSize = versions.reduce((a: number, v: any) => a + (v.size_bytes ?? 0), 0);
-    const docsWithVersions = new Set(versions.map((v: any) => v.document_id)).size;
-
-    const dailyCounts: Record<string, number> = {};
-    for (const d of docs) {
-      const day = (d.created_at as string).slice(0, 10);
-      dailyCounts[day] = (dailyCounts[day] ?? 0) + 1;
-    }
-    const timeline = Object.entries(dailyCounts)
-      .sort((a, b) => a[0].localeCompare(b[0]))
-      .map(([date, count]) => ({ date, count }));
-
-    // 2) Lecture du contenu de chaque document (limité)
-    const toAnalyze = docs.slice(0, MAX_FILES);
+    // 2) Lecture du contenu (limité) avant filtrage par date du document
+    const toAnalyze = allDocs.slice(0, 120);
     const fileContents = await Promise.all(
       toAnalyze.map(async (d) => {
         const base: any = {
@@ -282,11 +252,77 @@ serve(async (req) => {
       }),
     );
 
+    // 2bis) Extraire la date INSCRITE dans le document (en-tête « TAUX DU JOUR — JJ/MM/AAAA »)
+    //       et filtrer selon la période demandée.
+    const extractDocDate = (text?: string | null): string | null => {
+      if (!text) return null;
+      // 1) en-tête taux du jour
+      let m = text.match(/TAUX\s+DU\s+JOUR[^0-9]*?(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})/i);
+      // 2) fallback: première date FR du document
+      if (!m) m = text.match(/\b(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{2,4})\b/);
+      // 3) fallback: première date ISO
+      if (!m) {
+        const iso = text.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
+        if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+        return null;
+      }
+      let [, dd, mm, yy] = m;
+      let year = yy.length === 2 ? `20${yy}` : yy;
+      const d = dd.padStart(2, "0");
+      const mo = mm.padStart(2, "0");
+      return `${year}-${mo}-${d}`;
+    };
+
+    const withDocDate = fileContents.map((f: any) => {
+      const text = typeof f.content === "string" ? f.content : "";
+      const docDate = extractDocDate(text);
+      return { ...f, doc_date: docDate, used_date: docDate ?? (f.created_at?.slice(0, 10) ?? null) };
+    });
+
+    // Filtre: date du document (ou created_at en secours) doit être dans [start, end)
+    const inPeriod = withDocDate.filter((f: any) => {
+      const d = f.used_date;
+      return typeof d === "string" && d >= start && d < end;
+    });
+
+    // Cap après filtrage pour limiter le coût IA
+    const docsForAi = inPeriod.slice(0, MAX_FILES);
+    const docs = docsForAi; // utilisé pour stats & message d'agrégation
+
+    // Statistiques agrégées (sur les documents de la période)
+    const byCategory = docs.reduce((acc: Record<string, number>, d: any) => {
+      const k = d.category ?? "Sans catégorie";
+      acc[k] = (acc[k] ?? 0) + 1;
+      return acc;
+    }, {});
+    const byMime = docs.reduce((acc: Record<string, number>, d: any) => {
+      const k = (d.mime ?? "inconnu").split(";")[0];
+      acc[k] = (acc[k] ?? 0) + 1;
+      return acc;
+    }, {});
+    const tagCounts: Record<string, number> = {};
+    for (const d of docs) for (const t of d.tags ?? []) tagCounts[t] = (tagCounts[t] ?? 0) + 1;
+    const topTags = Object.entries(tagCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 15)
+      .map(([tag, count]) => ({ tag, count }));
+    const totalSize = docs.reduce((a: number, d: any) => a + (d.size ?? 0), 0);
+    const versionsSize = versions.reduce((a: number, v: any) => a + (v.size_bytes ?? 0), 0);
+    const docsWithVersions = new Set(versions.map((v: any) => v.document_id)).size;
+    const dailyCounts: Record<string, number> = {};
+    for (const d of docs) {
+      const day = d.used_date as string;
+      if (day) dailyCounts[day] = (dailyCounts[day] ?? 0) + 1;
+    }
+    const timeline = Object.entries(dailyCounts)
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([date, count]) => ({ date, count }));
+
     // 3) Résumer chaque document via l'IA (parallélisé, 1 appel par doc)
     const perDocSummaries = await Promise.all(
-      fileContents.map(async (f) => {
+      docsForAi.map(async (f) => {
         const id = f.id;
-        const header = `Nom: ${f.name}\nType: ${f.mime ?? "inconnu"}\nCatégorie: ${f.category ?? "—"}\nTags: ${(f.tags ?? []).join(", ") || "—"}\nCréé le: ${f.created_at}`;
+        const header = `Nom: ${f.name}\nType: ${f.mime ?? "inconnu"}\nCatégorie: ${f.category ?? "—"}\nTags: ${(f.tags ?? []).join(", ") || "—"}\nDate du document: ${f.doc_date ?? "(non détectée, fallback création: " + (f.created_at?.slice(0, 10) ?? "—") + ")"}`;
 
         let userContent: any;
         if (f.kind === "text" || f.kind === "pdf_text") {
