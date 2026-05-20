@@ -358,6 +358,7 @@ export function RichTextEditor({
   minHeight = "60vh",
 }: Props) {
   const editor = useEditor({
+    immediatelyRender: false,
     extensions: [
       StarterKit.configure({ link: false, underline: false }),
       Underline,
