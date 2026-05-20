@@ -257,6 +257,24 @@ serve(async (req) => {
             const text = matches.join("\n").replace(/\s+\n/g, "\n").slice(0, MAX_CHARS_PER_FILE);
             return { ...base, kind: "pdf_text", content: text };
           }
+          if (isDocx(d.mime_type, d.name)) {
+            try {
+              const text = await extractDocxText(bytes, MAX_CHARS_PER_FILE);
+              if (text.trim().length >= 20) {
+                return { ...base, kind: "text", content: text };
+              }
+              return { ...base, kind: "metadata", note: "DOCX sans texte extractible" };
+            } catch (e: any) {
+              return { ...base, kind: "metadata", note: `DOCX illisible: ${e?.message ?? "inconnu"}` };
+            }
+          }
+          if (isOfficeOpenXml(d.mime_type, d.name)) {
+            const text = await extractOoxmlSharedText(bytes, MAX_CHARS_PER_FILE);
+            if (text.trim().length >= 20) {
+              return { ...base, kind: "text", content: text };
+            }
+            return { ...base, kind: "metadata", note: "Document Office sans texte extractible" };
+          }
           return { ...base, kind: "metadata", note: "Type non lisible automatiquement" };
         } catch (e: any) {
           return { ...base, kind: "metadata", note: `Erreur de lecture: ${e?.message ?? "inconnue"}` };
