@@ -486,6 +486,31 @@ function ReportsPage() {
             para(r.versions_analysis),
             heading("Tags"),
             para(r.tags_analysis),
+            ...(r.content_themes && r.content_themes.length
+              ? [
+                  heading("Thèmes détectés"),
+                  ...r.content_themes.map((t) => new Paragraph({ text: t, bullet: { level: 0 } })),
+                ]
+              : []),
+            ...(r.per_document && r.per_document.length
+              ? [
+                  heading("Analyse fichier par fichier"),
+                  ...r.per_document.flatMap((d) => [
+                    new Paragraph({
+                      heading: HeadingLevel.HEADING_2,
+                      children: [new TextRun({ text: d.name, bold: true })],
+                      spacing: { before: 200, after: 80 },
+                    }),
+                    para(`${d.mime ?? "type inconnu"} · ${d.category ?? "sans catégorie"}`, {
+                      italics: true,
+                    }),
+                    para(d.summary || "—"),
+                    ...(d.key_points ?? []).map(
+                      (k) => new Paragraph({ text: k, bullet: { level: 0 } }),
+                    ),
+                  ]),
+                ]
+              : []),
             heading("Recommandations"),
             ...r.recommendations.map((p) => new Paragraph({ text: p, bullet: { level: 0 } })),
           ],
