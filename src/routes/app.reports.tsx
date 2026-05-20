@@ -96,14 +96,7 @@ type PerDoc = {
   key_points: string[];
 };
 type DocsReport = {
-  executive_summary: string;
-  key_points: string[];
-  categories_analysis: string;
-  formats_analysis: string;
-  versions_analysis: string;
-  tags_analysis: string;
-  content_themes?: string[];
-  recommendations: string[];
+  synthesis: string;
   per_document?: PerDoc[];
 };
 
