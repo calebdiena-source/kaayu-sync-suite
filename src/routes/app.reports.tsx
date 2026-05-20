@@ -1023,43 +1023,6 @@ function DocsReportView({
         )}
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{report.categories_analysis}</p>
       </section>
-      <section className="rounded-lg border bg-card p-5">
-        <h3 className="mb-3 text-sm font-semibold">Formats de fichiers</h3>
-        {mimes.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Aucun format détecté.</p>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {mimes.slice(0, 20).map(([k, v]) => (
-              <span
-                key={k}
-                className="rounded-full border bg-muted/50 px-2.5 py-0.5 text-xs"
-              >
-                {k} <span className="text-muted-foreground">· {v}</span>
-              </span>
-            ))}
-          </div>
-        )}
-        <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{report.formats_analysis}</p>
-      </section>
-      <section className="rounded-lg border bg-card p-5">
-        <h3 className="mb-3 text-sm font-semibold">Versioning</h3>
-        <p className="text-sm leading-relaxed text-muted-foreground">{report.versions_analysis}</p>
-      </section>
-      <section className="rounded-lg border bg-card p-5">
-        <h3 className="mb-3 text-sm font-semibold">Tags les plus utilisés</h3>
-        {(!stats.documents.topTags || stats.documents.topTags.length === 0) ? (
-          <p className="text-sm text-muted-foreground">Aucun tag sur la période.</p>
-        ) : (
-          <div className="flex flex-wrap gap-2">
-            {stats.documents.topTags.map((t) => (
-              <span key={t.tag} className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs text-primary">
-                #{t.tag} <span className="text-muted-foreground">· {t.count}</span>
-              </span>
-            ))}
-          </div>
-        )}
-        <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{report.tags_analysis}</p>
-      </section>
       {report.content_themes && report.content_themes.length > 0 && (
         <section className="rounded-lg border bg-card p-5">
           <h3 className="mb-3 text-sm font-semibold">Thèmes détectés dans les documents</h3>
