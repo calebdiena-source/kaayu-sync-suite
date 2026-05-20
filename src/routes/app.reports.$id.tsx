@@ -93,9 +93,29 @@ function fmtBytes(n: number) {
   return `${(n / Math.pow(1024, i)).toFixed(1)} ${u[i]}`;
 }
 
-function monthLabelOf(mo: string) {
-  const [y, m] = mo.split("-").map(Number);
-  return new Date(y, m - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+const DOCS_PREFIX = "docs:";
+function stripKind(key: string) {
+  return key.startsWith(DOCS_PREFIX) ? key.slice(DOCS_PREFIX.length) : key;
+}
+function kindOf(key: string): "global" | "documents" {
+  return key.startsWith(DOCS_PREFIX) ? "documents" : "global";
+}
+
+function periodLabelOf(mo: string) {
+  const k = stripKind(mo);
+  if (/^\d{4}-\d{2}$/.test(k)) {
+    const [y, m] = k.split("-").map(Number);
+    return new Date(y, m - 1, 1).toLocaleDateString("fr-FR", { month: "long", year: "numeric" });
+  }
+  const [a, b] = k.split("→");
+  if (a && b) {
+    const fmtD = (s: string) => {
+      const [y, m, d] = s.split("-").map(Number);
+      return new Date(y, m - 1, d).toLocaleDateString("fr-FR");
+    };
+    return `du ${fmtD(a)} au ${fmtD(b)}`;
+  }
+  return k;
 }
 
 function escapeHtml(s: string) {
@@ -112,7 +132,7 @@ function rateRowHtml(label: string, st: RateStat | null) {
 
 function buildHtml(r: Report, s: Stats, mo: string) {
   return `
-<h1>Rapport mensuel — ${escapeHtml(monthLabelOf(mo))}</h1>
+<h1>Rapport — ${escapeHtml(periodLabelOf(mo))}</h1>
 <p><em>Généré le ${escapeHtml(new Date().toLocaleString("fr-FR"))} · Kaayu Workspace</em></p>
 <h2>Synthèse exécutive</h2>
 <p>${escapeHtml(r.executive_summary)}</p>
@@ -139,6 +159,33 @@ function buildHtml(r: Report, s: Stats, mo: string) {
 </ul>
 <h2>Recommandations</h2>
 <ul>${(r.recommendations || []).map((p) => `<li>${escapeHtml(p)}</li>`).join("")}</ul>
+<p></p>
+`;
+}
+
+function buildDocsHtml(r: any, s: any, mo: string) {
+  const synth = typeof r?.synthesis === "string" ? r.synthesis : "";
+  const recos: string[] = Array.isArray(r?.recommendations) ? r.recommendations.filter((x: any) => typeof x === "string") : [];
+  const perDoc: any[] = Array.isArray(r?.per_document) ? r.per_document : [];
+  const synthHtml = synth
+    .split(/\n{2,}/)
+    .map((b: string) => b.trim())
+    .filter(Boolean)
+    .map((b: string) => `<p>${escapeHtml(b).replace(/\n/g, "<br/>")}</p>`)
+    .join("");
+  const docCount = s?.documents?.count ?? 0;
+  return `
+<h1>Rapport documents — ${escapeHtml(periodLabelOf(mo))}</h1>
+<p><em>Généré le ${escapeHtml(new Date().toLocaleString("fr-FR"))} · Kaayu Workspace · ${docCount} document(s)</em></p>
+<h2>Synthèse</h2>
+${synthHtml || "<p>Aucune synthèse générée.</p>"}
+${recos.length ? `<h2>Recommandations</h2><ul>${recos.map((p) => `<li>${escapeHtml(p)}</li>`).join("")}</ul>` : ""}
+${perDoc.length ? `<h2>Analyse fichier par fichier</h2>${perDoc
+    .map(
+      (d) =>
+        `<h3>${escapeHtml(d.name || "")}</h3><p>${escapeHtml(d.summary || "")}</p>${Array.isArray(d.key_points) && d.key_points.length ? `<ul>${d.key_points.map((k: string) => `<li>${escapeHtml(k)}</li>`).join("")}</ul>` : ""}`,
+    )
+    .join("")}` : ""}
 <p></p>
 `;
 }
@@ -275,14 +322,22 @@ function ReportViewer() {
             return;
           }
           const parsed = JSON.parse(raw);
-          const dStats = normalizeStats(parsed.stats);
-          const dReport = normalizeReport(parsed.report);
           const dMonth = typeof parsed.month === "string" ? parsed.month : "";
           if (!active) return;
           setMonth(dMonth);
-          setStats(dStats);
-          setReport(dReport);
-          setHtml(dReport.html || buildHtml(dReport, dStats, dMonth));
+          if (kindOf(dMonth) === "documents") {
+            const dStats = parsed.stats ?? {};
+            const dReport = parsed.report ?? { synthesis: "" };
+            setStats(dStats as any);
+            setReport(dReport as any);
+            setHtml(dReport.html || buildDocsHtml(dReport, dStats, dMonth));
+          } else {
+            const dStats = normalizeStats(parsed.stats);
+            const dReport = normalizeReport(parsed.report);
+            setStats(dStats);
+            setReport(dReport);
+            setHtml(dReport.html || buildHtml(dReport, dStats, dMonth));
+          }
           return;
         }
         const { data, error } = await supabase
@@ -296,12 +351,20 @@ function ReportViewer() {
           navigate({ to: "/app/reports" });
           return;
         }
-        const r = normalizeReport(data.report);
-        const s = normalizeStats(data.stats);
         setMonth(data.month);
-        setStats(s);
-        setReport(r);
-        setHtml(r.html || buildHtml(r, s, data.month));
+        if (kindOf(data.month) === "documents") {
+          const s = (data.stats ?? {}) as any;
+          const r = (data.report ?? { synthesis: "" }) as any;
+          setStats(s);
+          setReport(r);
+          setHtml(r.html || buildDocsHtml(r, s, data.month));
+        } else {
+          const r = normalizeReport(data.report);
+          const s = normalizeStats(data.stats);
+          setStats(s);
+          setReport(r);
+          setHtml(r.html || buildHtml(r, s, data.month));
+        }
       } catch (e: any) {
         toast.error(e?.message || "Erreur de chargement");
       } finally {
@@ -362,7 +425,7 @@ function ReportViewer() {
         </Button>
         <h1 className="text-lg font-semibold">
           {isDraft ? "Brouillon — " : "Rapport — "}
-          {month ? monthLabelOf(month) : ""}
+          {month ? periodLabelOf(month) : ""}
         </h1>
         <div className="ml-auto flex flex-wrap gap-2">
           <Button size="sm" onClick={save} disabled={saving}>

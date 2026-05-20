@@ -97,6 +97,7 @@ type PerDoc = {
 };
 type DocsReport = {
   synthesis: string;
+  recommendations?: string[];
   per_document?: PerDoc[];
 };
 
@@ -442,6 +443,7 @@ function ReportsPage() {
       .map((block) => block.trim())
       .filter(Boolean)
       .map((block) => para(block));
+    const recos = (r.recommendations || []).filter(Boolean);
     const doc = new Document({
       sections: [
         {
@@ -453,6 +455,9 @@ function ReportsPage() {
             para(`Généré le ${new Date().toLocaleString("fr-FR")} · Kaayu Workspace · ${s.documents.count} document(s)`),
             heading("Synthèse"),
             ...(synthParas.length ? synthParas : [para("Aucune synthèse générée.")]),
+            ...(recos.length
+              ? [heading("Recommandations"), ...recos.map((p) => new Paragraph({ text: p, bullet: { level: 0 } }))]
+              : []),
           ],
         },
       ],
@@ -506,6 +511,11 @@ function ReportsPage() {
       writeText(b.trim());
       y += 4;
     });
+    const recos = (r.recommendations || []).filter(Boolean);
+    if (recos.length) {
+      heading("Recommandations");
+      recos.forEach((p) => writeText(`→ ${p}`));
+    }
     pdf.save(`rapport-documents-kaayu-${stripKind(mo)}.pdf`);
     toast.success("Export .pdf téléchargé");
   };
@@ -645,18 +655,26 @@ function ReportsPage() {
         </Button>
         {report && stats && storageKey && (
           <>
-            {kind === "global" && (
-              <Button
-                onClick={() =>
-                  navigate({
-                    to: "/app/reports/$id",
-                    params: { id: activeId ?? "new" },
-                  })
+            <Button
+              onClick={() => {
+                if (!activeId) {
+                  try {
+                    sessionStorage.setItem(
+                      "kaayu:report:draft",
+                      JSON.stringify({ month: storageKey, stats, report, kind }),
+                    );
+                  } catch {
+                    // ignore
+                  }
                 }
-              >
-                <Pencil className="mr-2 h-4 w-4" /> Ouvrir dans l'éditeur
-              </Button>
-            )}
+                navigate({
+                  to: "/app/reports/$id",
+                  params: { id: activeId ?? "new" },
+                });
+              }}
+            >
+              <Pencil className="mr-2 h-4 w-4" /> Ouvrir dans l'éditeur
+            </Button>
             <Button variant="outline" onClick={() => exportCurrent("docx")}>
               <Download className="mr-2 h-4 w-4" /> .docx
             </Button>
@@ -891,6 +909,7 @@ function DocsReportView({
   periodLabel: string;
 }) {
   const blocks = (report.synthesis || "").split(/\n{2,}/).map((b) => b.trim()).filter(Boolean);
+  const recos = (report.recommendations || []).filter(Boolean);
   return (
     <div className="space-y-6">
       <section className="rounded-lg border bg-card p-5">
@@ -915,6 +934,19 @@ function DocsReportView({
           )}
         </div>
       </section>
+      {recos.length > 0 && (
+        <section className="rounded-lg border bg-card p-5">
+          <h3 className="mb-3 text-sm font-semibold">Recommandations</h3>
+          <ul className="space-y-1.5 text-sm">
+            {recos.map((r, i) => (
+              <li key={i} className="flex gap-2">
+                <span className="text-primary">→</span>
+                <span>{r}</span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 }

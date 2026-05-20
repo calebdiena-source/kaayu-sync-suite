@@ -369,12 +369,12 @@ serve(async (req) => {
     };
 
     // 4) Synthèse unique des documents
-    const synthesisPrompt = `Tu es l'analyste documentaire de Kaayu Workspace. À partir des résumés individuels des documents de la ${periodLabel}, rédige UNE SEULE synthèse en français, fluide et structurée, qui regroupe et raconte ce que disent les documents de la période (sujets traités, contenus principaux, décisions, faits, chiffres clés, éventuelles incohérences ou doublons). N'évoque ni les taux de change, ni les tâches, ni les réunions, ni les statistiques de stockage. Ne fais pas une liste de fichiers ni un tableau ; produis un texte narratif organisé en paragraphes (avec sous-titres en gras si utile), de longueur adaptée au volume documentaire (typiquement 400 à 1200 mots).
+    const synthesisPrompt = `Tu es l'analyste documentaire de Kaayu Workspace. À partir des résumés individuels des documents de la ${periodLabel}, rédige UNE SEULE synthèse en français, fluide et structurée, qui regroupe et raconte ce que disent les documents de la période (sujets traités, contenus principaux, décisions, faits, chiffres clés, éventuelles incohérences ou doublons). N'évoque ni les taux de change, ni les tâches, ni les réunions, ni les statistiques de stockage. Ne fais pas une liste de fichiers ni un tableau ; produis un texte narratif organisé en paragraphes (avec sous-titres en gras si utile), de longueur adaptée au volume documentaire (typiquement 400 à 1200 mots). Propose aussi 3 à 7 recommandations concrètes et actionnables tirées du contenu des documents (organisation, suivi, décisions à prendre, points à clarifier, etc.).
  
 Résumés des documents (${perDocSummaries.length} fichiers analysés sur ${docs.length}) :
 ${JSON.stringify(perDocSummaries.map((s) => ({ name: s.name, category: (s as any).category, summary: s.summary, key_points: s.key_points })), null, 2)}
  
-Réponds STRICTEMENT en JSON valide de la forme : {"synthesis": "<le texte de la synthèse, en markdown léger>"}.`;
+Réponds STRICTEMENT en JSON valide de la forme : {"synthesis": "<le texte de la synthèse, en markdown léger>", "recommendations": ["...", "..."]}.`;
 
     const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -408,13 +408,17 @@ Réponds STRICTEMENT en JSON valide de la forme : {"synthesis": "<le texte de la
     const aiJson = await aiRes.json();
     const raw = aiJson?.choices?.[0]?.message?.content ?? "{}";
     let synthesis = "";
+    let recommendations: string[] = [];
     try {
       const parsed = JSON.parse(raw);
       synthesis = typeof parsed.synthesis === "string" ? parsed.synthesis : String(raw);
+      if (Array.isArray(parsed.recommendations)) {
+        recommendations = parsed.recommendations.filter((x: any) => typeof x === "string").slice(0, 10);
+      }
     } catch {
       synthesis = String(raw);
     }
-    const report = { synthesis, per_document: perDocSummaries };
+    const report = { synthesis, recommendations, per_document: perDocSummaries };
 
     return new Response(
       JSON.stringify({ month: periodKey, period: { start, end, label: periodLabel }, stats, report }),
