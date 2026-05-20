@@ -564,12 +564,6 @@ function ReportsPage() {
       margin: { left: margin, right: margin },
     });
     y = (pdf as any).lastAutoTable.finalY + 12;
-    heading("Formats et tailles");
-    writeText(r.formats_analysis);
-    heading("Versioning");
-    writeText(r.versions_analysis);
-    heading("Tags");
-    writeText(r.tags_analysis);
     if (r.content_themes && r.content_themes.length) {
       heading("Thèmes détectés");
       r.content_themes.forEach((t) => writeText(`• ${t}`));
