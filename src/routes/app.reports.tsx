@@ -157,6 +157,7 @@ function ReportsPage() {
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState<any>(null);
   const [report, setReport] = useState<any>(null);
+  const [activeReportKind, setActiveReportKind] = useState<"global" | "documents" | null>(null);
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [filterMonth, setFilterMonth] = useState<string>("");
@@ -197,9 +198,19 @@ function ReportsPage() {
   useEffect(() => {
     setReport(null);
     setStats(null);
+    setActiveReportKind(null);
     setActiveId(null);
     setFilterMonth("");
   }, [kind]);
+
+  const changeKind = (next: "global" | "documents") => {
+    setReport(null);
+    setStats(null);
+    setActiveReportKind(null);
+    setActiveId(null);
+    setFilterMonth("");
+    setKind(next);
+  };
 
   const generate = async () => {
     if (!user) {
@@ -219,6 +230,7 @@ function ReportsPage() {
     setLoading(true);
     setReport(null);
     setStats(null);
+    setActiveReportKind(null);
     setActiveId(null);
     try {
       const { data, error } = await supabase.functions.invoke(fnName, { body });
@@ -226,6 +238,7 @@ function ReportsPage() {
       if (data?.error) throw new Error(data.error);
       setStats(data.stats);
       setReport(data.report);
+      setActiveReportKind(kind);
 
       await supabase
         .from("monthly_reports")
@@ -274,6 +287,7 @@ function ReportsPage() {
     }
     setStats(h.stats);
     setReport(h.report);
+    setActiveReportKind(k);
     setActiveId(h.id);
     if (k === "global") {
       navigate({ to: "/app/reports/$id", params: { id: h.id } });
@@ -290,6 +304,7 @@ function ReportsPage() {
     if (activeId === id) {
       setReport(null);
       setStats(null);
+      setActiveReportKind(null);
       setActiveId(null);
     }
     setHistory((h) => h.filter((x) => x.id !== id));
