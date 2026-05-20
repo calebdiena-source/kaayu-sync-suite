@@ -480,12 +480,6 @@ function ReportsPage() {
             heading("Répartition par catégorie"),
             para(r.categories_analysis),
             catTable,
-            heading("Formats et tailles"),
-            para(r.formats_analysis),
-            heading("Versioning"),
-            para(r.versions_analysis),
-            heading("Tags"),
-            para(r.tags_analysis),
             ...(r.content_themes && r.content_themes.length
               ? [
                   heading("Thèmes détectés"),
