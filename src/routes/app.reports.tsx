@@ -511,6 +511,11 @@ function ReportsPage() {
       writeText(b.trim());
       y += 4;
     });
+    const recos = (r.recommendations || []).filter(Boolean);
+    if (recos.length) {
+      heading("Recommandations");
+      recos.forEach((p) => writeText(`→ ${p}`));
+    }
     pdf.save(`rapport-documents-kaayu-${stripKind(mo)}.pdf`);
     toast.success("Export .pdf téléchargé");
   };
