@@ -977,7 +977,6 @@ function DocsReportView({
   periodLabel: string;
 }) {
   const cats = Object.entries(stats.documents.byCategory ?? {}).sort((a, b) => b[1] - a[1]);
-  const mimes = Object.entries(stats.documents.byMime ?? {}).sort((a, b) => b[1] - a[1]);
   return (
     <div className="space-y-6">
       <section className="rounded-lg border bg-card p-5">
