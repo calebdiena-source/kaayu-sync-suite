@@ -78,6 +78,7 @@ type GlobalReport = {
 type DocsStats = {
   documents: {
     count: number;
+    analyzed?: number;
     totalSize: number;
     byCategory: Record<string, number>;
     byMime: Record<string, number>;
@@ -86,6 +87,14 @@ type DocsStats = {
   };
   versions: { count: number; totalSize: number; docsWithVersions: number };
 };
+type PerDoc = {
+  id: string;
+  name: string;
+  category?: string | null;
+  mime?: string | null;
+  summary: string;
+  key_points: string[];
+};
 type DocsReport = {
   executive_summary: string;
   key_points: string[];
@@ -93,7 +102,9 @@ type DocsReport = {
   formats_analysis: string;
   versions_analysis: string;
   tags_analysis: string;
+  content_themes?: string[];
   recommendations: string[];
+  per_document?: PerDoc[];
 };
 
 const DOCS_PREFIX = "docs:";
