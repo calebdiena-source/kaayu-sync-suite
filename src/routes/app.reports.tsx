@@ -78,6 +78,7 @@ type GlobalReport = {
 type DocsStats = {
   documents: {
     count: number;
+    analyzed?: number;
     totalSize: number;
     byCategory: Record<string, number>;
     byMime: Record<string, number>;
@@ -86,6 +87,14 @@ type DocsStats = {
   };
   versions: { count: number; totalSize: number; docsWithVersions: number };
 };
+type PerDoc = {
+  id: string;
+  name: string;
+  category?: string | null;
+  mime?: string | null;
+  summary: string;
+  key_points: string[];
+};
 type DocsReport = {
   executive_summary: string;
   key_points: string[];
@@ -93,7 +102,9 @@ type DocsReport = {
   formats_analysis: string;
   versions_analysis: string;
   tags_analysis: string;
+  content_themes?: string[];
   recommendations: string[];
+  per_document?: PerDoc[];
 };
 
 const DOCS_PREFIX = "docs:";
@@ -475,6 +486,31 @@ function ReportsPage() {
             para(r.versions_analysis),
             heading("Tags"),
             para(r.tags_analysis),
+            ...(r.content_themes && r.content_themes.length
+              ? [
+                  heading("Thèmes détectés"),
+                  ...r.content_themes.map((t) => new Paragraph({ text: t, bullet: { level: 0 } })),
+                ]
+              : []),
+            ...(r.per_document && r.per_document.length
+              ? [
+                  heading("Analyse fichier par fichier"),
+                  ...r.per_document.flatMap((d) => [
+                    new Paragraph({
+                      heading: HeadingLevel.HEADING_2,
+                      children: [new TextRun({ text: d.name, bold: true })],
+                      spacing: { before: 200, after: 80 },
+                    }),
+                    para(`${d.mime ?? "type inconnu"} · ${d.category ?? "sans catégorie"}`, {
+                      italics: true,
+                    }),
+                    para(d.summary || "—"),
+                    ...(d.key_points ?? []).map(
+                      (k) => new Paragraph({ text: k, bullet: { level: 0 } }),
+                    ),
+                  ]),
+                ]
+              : []),
             heading("Recommandations"),
             ...r.recommendations.map((p) => new Paragraph({ text: p, bullet: { level: 0 } })),
           ],
@@ -540,6 +576,20 @@ function ReportsPage() {
     writeText(r.versions_analysis);
     heading("Tags");
     writeText(r.tags_analysis);
+    if (r.content_themes && r.content_themes.length) {
+      heading("Thèmes détectés");
+      r.content_themes.forEach((t) => writeText(`• ${t}`));
+    }
+    if (r.per_document && r.per_document.length) {
+      heading("Analyse fichier par fichier");
+      r.per_document.forEach((d) => {
+        writeText(d.name, 12, true, [10, 30, 80]);
+        writeText(`${d.mime ?? "type inconnu"} · ${d.category ?? "sans catégorie"}`, 9, false, [120, 120, 120]);
+        writeText(d.summary || "—");
+        (d.key_points ?? []).forEach((k) => writeText(`• ${k}`, 10, false, [60, 60, 60]));
+        y += 4;
+      });
+    }
     heading("Recommandations");
     r.recommendations.forEach((p) => writeText(`→ ${p}`));
     pdf.save(`rapport-documents-kaayu-${stripKind(mo)}.pdf`);
@@ -1010,6 +1060,56 @@ function DocsReportView({
         )}
         <p className="mt-3 text-sm leading-relaxed text-muted-foreground">{report.tags_analysis}</p>
       </section>
+      {report.content_themes && report.content_themes.length > 0 && (
+        <section className="rounded-lg border bg-card p-5">
+          <h3 className="mb-3 text-sm font-semibold">Thèmes détectés dans les documents</h3>
+          <div className="flex flex-wrap gap-2">
+            {report.content_themes.map((t, i) => (
+              <span key={i} className="rounded-full bg-accent px-2.5 py-1 text-xs">
+                {t}
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
+      {report.per_document && report.per_document.length > 0 && (
+        <section className="rounded-lg border bg-card p-5">
+          <h3 className="mb-1 text-sm font-semibold">Analyse fichier par fichier</h3>
+          <p className="mb-4 text-xs text-muted-foreground">
+            {report.per_document.length} document{report.per_document.length > 1 ? "s" : ""} analysé
+            {report.per_document.length > 1 ? "s" : ""}
+            {stats.documents.count > report.per_document.length
+              ? ` sur ${stats.documents.count} (limite atteinte)`
+              : ""}
+            .
+          </p>
+          <ul className="space-y-4">
+            {report.per_document.map((d) => (
+              <li key={d.id} className="rounded-md border bg-background p-3">
+                <div className="flex flex-wrap items-baseline justify-between gap-2">
+                  <div className="text-sm font-medium">{d.name}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {d.mime ?? "type ?"} · {d.category ?? "sans catégorie"}
+                  </div>
+                </div>
+                <p className="mt-1.5 text-sm leading-relaxed text-foreground/90">
+                  {d.summary || "—"}
+                </p>
+                {d.key_points && d.key_points.length > 0 && (
+                  <ul className="mt-2 space-y-1 text-xs text-muted-foreground">
+                    {d.key_points.map((k, i) => (
+                      <li key={i} className="flex gap-1.5">
+                        <span className="text-primary">•</span>
+                        <span>{k}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <section className="rounded-lg border bg-card p-5">
         <h3 className="mb-3 text-sm font-semibold">Recommandations</h3>
         <ul className="space-y-1.5 text-sm">
