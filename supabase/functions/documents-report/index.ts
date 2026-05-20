@@ -408,13 +408,17 @@ Réponds STRICTEMENT en JSON valide de la forme : {"synthesis": "<le texte de la
     const aiJson = await aiRes.json();
     const raw = aiJson?.choices?.[0]?.message?.content ?? "{}";
     let synthesis = "";
+    let recommendations: string[] = [];
     try {
       const parsed = JSON.parse(raw);
       synthesis = typeof parsed.synthesis === "string" ? parsed.synthesis : String(raw);
+      if (Array.isArray(parsed.recommendations)) {
+        recommendations = parsed.recommendations.filter((x: any) => typeof x === "string").slice(0, 10);
+      }
     } catch {
       synthesis = String(raw);
     }
-    const report = { synthesis, per_document: perDocSummaries };
+    const report = { synthesis, recommendations, per_document: perDocSummaries };
 
     return new Response(
       JSON.stringify({ month: periodKey, period: { start, end, label: periodLabel }, stats, report }),
