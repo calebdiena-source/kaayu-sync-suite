@@ -513,39 +513,19 @@ function ReportsPage() {
       y += 4;
     };
     writeText(`Rapport documents — ${periodLabelOf(mo)}`, 20, true, [10, 30, 80]);
-    writeText(`Généré le ${new Date().toLocaleString("fr-FR")} · Kaayu Workspace`, 9, false, [120, 120, 120]);
+    writeText(
+      `Généré le ${new Date().toLocaleString("fr-FR")} · Kaayu Workspace · ${s.documents.count} document(s)`,
+      9,
+      false,
+      [120, 120, 120],
+    );
     y += 8;
-    heading("Synthèse exécutive");
-    writeText(r.executive_summary);
-    heading("Points clés");
-    r.key_points.forEach((p) => writeText(`• ${p}`));
-    heading("Répartition par catégorie");
-    writeText(r.categories_analysis);
-    autoTable(pdf, {
-      startY: y + 6,
-      head: [["Catégorie", "Documents"]],
-      body: Object.entries(s.documents.byCategory).map(([k, v]) => [k, String(v)]),
-      styles: { font: "helvetica", fontSize: 9 },
-      headStyles: { fillColor: [20, 60, 120] },
-      margin: { left: margin, right: margin },
+    heading("Synthèse");
+    const blocks = (r.synthesis || "Aucune synthèse générée.").split(/\n{2,}/);
+    blocks.forEach((b) => {
+      writeText(b.trim());
+      y += 4;
     });
-    y = (pdf as any).lastAutoTable.finalY + 12;
-    if (r.content_themes && r.content_themes.length) {
-      heading("Thèmes détectés");
-      r.content_themes.forEach((t) => writeText(`• ${t}`));
-    }
-    if (r.per_document && r.per_document.length) {
-      heading("Analyse fichier par fichier");
-      r.per_document.forEach((d) => {
-        writeText(d.name, 12, true, [10, 30, 80]);
-        writeText(`${d.mime ?? "type inconnu"} · ${d.category ?? "sans catégorie"}`, 9, false, [120, 120, 120]);
-        writeText(d.summary || "—");
-        (d.key_points ?? []).forEach((k) => writeText(`• ${k}`, 10, false, [60, 60, 60]));
-        y += 4;
-      });
-    }
-    heading("Recommandations");
-    r.recommendations.forEach((p) => writeText(`→ ${p}`));
     pdf.save(`rapport-documents-kaayu-${stripKind(mo)}.pdf`);
     toast.success("Export .pdf téléchargé");
   };
