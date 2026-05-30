@@ -356,6 +356,11 @@ function DocsPage() {
               <>
                 <HardDrive className="h-3.5 w-3.5 text-primary" /> Google Drive connecté
               </>
+            ) : driveNeedsReconnect ? (
+              <>
+                <HardDrive className="h-3.5 w-3.5 text-amber-600" /> Google Drive — reconnexion
+                requise
+              </>
             ) : (
               "Stockage cloud sécurisé"
             )}{" "}
@@ -363,10 +368,17 @@ function DocsPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {driveNeedsReconnect && (
+            <Button variant="outline" size="sm" onClick={reconnectDrive}>
+              <HardDrive className="mr-1 h-4 w-4" />
+              Reconnecter Google Drive
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={() => exportList("csv")}>
             <FileDown className="mr-1 h-4 w-4" />
             CSV
           </Button>
+
           <Button variant="outline" size="sm" onClick={() => exportList("pdf")}>
             <FileDown className="mr-1 h-4 w-4" />
             PDF
