@@ -113,11 +113,22 @@ function DocsPage() {
   const [noteName, setNoteName] = useState("");
   const [creatingNote, setCreatingNote] = useState(false);
   const [useDrive, setUseDrive] = useState(false);
+  const [driveNeedsReconnect, setDriveNeedsReconnect] = useState(false);
 
   const checkDrive = useServerFn(driveAvailable);
   const uploadDrive = useServerFn(uploadDocumentToDrive);
   const downloadDrive = useServerFn(downloadDocumentFromDrive);
   const deleteDrive = useServerFn(deleteDocumentFromDrive);
+  const startConnect = useServerFn(startGoogleConnect);
+
+  const reconnectDrive = async () => {
+    try {
+      const { url } = await startConnect({});
+      window.location.href = url;
+    } catch {
+      toast.error("Impossible de démarrer la reconnexion Google");
+    }
+  };
 
   const load = async () => {
     if (!user) return;
@@ -129,11 +140,12 @@ function DocsPage() {
         .eq("kind", "document")
         .order("name"),
       supabase.from("documents").select("*").order("created_at", { ascending: false }),
-      checkDrive().catch(() => ({ available: false })),
+      checkDrive().catch(() => ({ available: false, needsReconnect: false })),
     ]);
     setFolders(f ?? []);
     setDocs(d ?? []);
     setUseDrive(!!drv?.available);
+    setDriveNeedsReconnect(!!(drv as { needsReconnect?: boolean })?.needsReconnect);
   };
 
   useEffect(() => {
