@@ -24,11 +24,21 @@ export const driveAvailable = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const { data } = await supabaseAdmin
       .from("google_integrations")
-      .select("scope")
+      .select("scope, refresh_token")
       .eq("user_id", context.userId)
       .maybeSingle();
-    const ok = !!data?.scope?.includes("drive.file");
-    return { available: ok };
+    if (!data) return { available: false, needsReconnect: false };
+    const hasScope = !!data.scope?.includes("drive.file");
+    if (!hasScope) return { available: false, needsReconnect: false };
+    // Vérifie que le refresh token est toujours valide (sinon supprime la ligne et signale needsReconnect)
+    try {
+      const { getValidAccessToken } = await import("./google-calendar.server");
+      const auth = await getValidAccessToken(context.userId);
+      if (!auth) return { available: false, needsReconnect: true };
+      return { available: true, needsReconnect: false };
+    } catch {
+      return { available: false, needsReconnect: true };
+    }
   });
 
 export const uploadDocumentToDrive = createServerFn({ method: "POST" })
