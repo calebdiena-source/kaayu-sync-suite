@@ -53,6 +53,13 @@ export async function exchangeCode(code: string, origin: string) {
   }>;
 }
 
+export class GoogleReconnectRequiredError extends Error {
+  constructor(message = "google_reconnect_required") {
+    super(message);
+    this.name = "GoogleReconnectRequiredError";
+  }
+}
+
 export async function refreshToken(refresh_token: string) {
   const res = await fetch(TOKEN_URL, {
     method: "POST",
@@ -64,7 +71,19 @@ export async function refreshToken(refresh_token: string) {
       grant_type: "refresh_token",
     }),
   });
-  if (!res.ok) throw new Error(`Refresh failed: ${await res.text()}`);
+  if (!res.ok) {
+    const body = await res.text();
+    const lower = body.toLowerCase();
+    if (
+      res.status === 400 ||
+      res.status === 401 ||
+      lower.includes("invalid_grant") ||
+      lower.includes("expired or revoked")
+    ) {
+      throw new GoogleReconnectRequiredError();
+    }
+    throw new Error(`Refresh failed: ${body}`);
+  }
   return res.json() as Promise<{ access_token: string; expires_in: number; scope?: string }>;
 }
 
@@ -89,15 +108,24 @@ export async function getValidAccessToken(
   if (!data) return null;
   let token = data.access_token;
   if (new Date(data.token_expires_at).getTime() - 60000 < Date.now()) {
-    const r = await refreshToken(data.refresh_token);
-    token = r.access_token;
-    await supabaseAdmin
-      .from("google_integrations")
-      .update({
-        access_token: token,
-        token_expires_at: new Date(Date.now() + r.expires_in * 1000).toISOString(),
-      })
-      .eq("user_id", userId);
+    try {
+      const r = await refreshToken(data.refresh_token);
+      token = r.access_token;
+      await supabaseAdmin
+        .from("google_integrations")
+        .update({
+          access_token: token,
+          token_expires_at: new Date(Date.now() + r.expires_in * 1000).toISOString(),
+        })
+        .eq("user_id", userId);
+    } catch (e) {
+      if (e instanceof GoogleReconnectRequiredError) {
+        // Token révoqué/expiré : supprimer l'intégration pour forcer une reconnexion propre.
+        await supabaseAdmin.from("google_integrations").delete().eq("user_id", userId);
+        return null;
+      }
+      throw e;
+    }
   }
   return { token, calendarId: data.calendar_id ?? "primary" };
 }

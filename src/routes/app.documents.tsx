@@ -51,6 +51,7 @@ import {
   downloadDocumentFromDrive,
   deleteDocumentFromDrive,
 } from "@/lib/drive.functions";
+import { startGoogleConnect } from "@/lib/google.functions";
 
 export const Route = createFileRoute("/app/documents")({
   head: () => ({ meta: [{ title: "Documents — Kaayu" }] }),
@@ -112,11 +113,22 @@ function DocsPage() {
   const [noteName, setNoteName] = useState("");
   const [creatingNote, setCreatingNote] = useState(false);
   const [useDrive, setUseDrive] = useState(false);
+  const [driveNeedsReconnect, setDriveNeedsReconnect] = useState(false);
 
   const checkDrive = useServerFn(driveAvailable);
   const uploadDrive = useServerFn(uploadDocumentToDrive);
   const downloadDrive = useServerFn(downloadDocumentFromDrive);
   const deleteDrive = useServerFn(deleteDocumentFromDrive);
+  const startConnect = useServerFn(startGoogleConnect);
+
+  const reconnectDrive = async () => {
+    try {
+      const { url } = await startConnect({});
+      window.location.href = url;
+    } catch {
+      toast.error("Impossible de démarrer la reconnexion Google");
+    }
+  };
 
   const load = async () => {
     if (!user) return;
@@ -128,11 +140,12 @@ function DocsPage() {
         .eq("kind", "document")
         .order("name"),
       supabase.from("documents").select("*").order("created_at", { ascending: false }),
-      checkDrive().catch(() => ({ available: false })),
+      checkDrive().catch(() => ({ available: false, needsReconnect: false })),
     ]);
     setFolders(f ?? []);
     setDocs(d ?? []);
     setUseDrive(!!drv?.available);
+    setDriveNeedsReconnect(!!(drv as { needsReconnect?: boolean })?.needsReconnect);
   };
 
   useEffect(() => {
@@ -327,6 +340,9 @@ function DocsPage() {
     if (view === "mine" && !mine) return false;
     if (view === "shared" && mine) return false;
     if (folderId && d.folder_id !== folderId) return false;
+    // Si la session Drive a expiré, masquer les fichiers stockés sur Drive (inaccessibles).
+    if (driveNeedsReconnect && (d as { storage_provider?: string }).storage_provider === "drive")
+      return false;
     return d.name.toLowerCase().includes(search.toLowerCase());
   });
 
@@ -340,6 +356,11 @@ function DocsPage() {
               <>
                 <HardDrive className="h-3.5 w-3.5 text-primary" /> Google Drive connecté
               </>
+            ) : driveNeedsReconnect ? (
+              <>
+                <HardDrive className="h-3.5 w-3.5 text-amber-600" /> Google Drive — reconnexion
+                requise
+              </>
             ) : (
               "Stockage cloud sécurisé"
             )}{" "}
@@ -347,10 +368,17 @@ function DocsPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {driveNeedsReconnect && (
+            <Button variant="outline" size="sm" onClick={reconnectDrive}>
+              <HardDrive className="mr-1 h-4 w-4" />
+              Reconnecter Google Drive
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={() => exportList("csv")}>
             <FileDown className="mr-1 h-4 w-4" />
             CSV
           </Button>
+
           <Button variant="outline" size="sm" onClick={() => exportList("pdf")}>
             <FileDown className="mr-1 h-4 w-4" />
             PDF
@@ -384,7 +412,19 @@ function DocsPage() {
         </div>
       </div>
 
+      {driveNeedsReconnect && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-500/40 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+          <span>
+            Votre connexion Google Drive a expiré. Cliquez sur Reconnecter Google Drive.
+          </span>
+          <Button size="sm" variant="outline" onClick={reconnectDrive}>
+            Reconnecter Google Drive
+          </Button>
+        </div>
+      )}
+
       <div className="grid gap-4 lg:grid-cols-[16rem_1fr]">
+
         <aside className="space-y-1 rounded-xl border bg-card p-3">
           <button
             onClick={() => setView("mine")}
