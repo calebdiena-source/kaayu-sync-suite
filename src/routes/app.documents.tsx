@@ -412,7 +412,19 @@ function DocsPage() {
         </div>
       </div>
 
+      {driveNeedsReconnect && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-500/40 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
+          <span>
+            Votre connexion Google Drive a expiré. Cliquez sur Reconnecter Google Drive.
+          </span>
+          <Button size="sm" variant="outline" onClick={reconnectDrive}>
+            Reconnecter Google Drive
+          </Button>
+        </div>
+      )}
+
       <div className="grid gap-4 lg:grid-cols-[16rem_1fr]">
+
         <aside className="space-y-1 rounded-xl border bg-card p-3">
           <button
             onClick={() => setView("mine")}
