@@ -51,6 +51,7 @@ import {
   downloadDocumentFromDrive,
   deleteDocumentFromDrive,
 } from "@/lib/drive.functions";
+import { startGoogleConnect } from "@/lib/google.functions";
 
 export const Route = createFileRoute("/app/documents")({
   head: () => ({ meta: [{ title: "Documents — Kaayu" }] }),
