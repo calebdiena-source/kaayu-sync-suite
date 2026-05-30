@@ -340,6 +340,9 @@ function DocsPage() {
     if (view === "mine" && !mine) return false;
     if (view === "shared" && mine) return false;
     if (folderId && d.folder_id !== folderId) return false;
+    // Si la session Drive a expiré, masquer les fichiers stockés sur Drive (inaccessibles).
+    if (driveNeedsReconnect && (d as { storage_provider?: string }).storage_provider === "drive")
+      return false;
     return d.name.toLowerCase().includes(search.toLowerCase());
   });
 
