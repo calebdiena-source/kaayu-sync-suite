@@ -1,15 +1,26 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, useCallback } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Save, Download, History, Share2, RotateCcw, FileText } from "lucide-react";
+import {
+  ArrowLeft,
+  Save,
+  Download,
+  History,
+  Share2,
+  RotateCcw,
+  FileText,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { ShareDocumentDialog } from "@/components/share-document-dialog";
 import { exportTextToPDF } from "@/lib/exports";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import mammoth from "mammoth/mammoth.browser";
 import { Document, Packer, Paragraph, HeadingLevel, TextRun } from "docx";
+import { downloadDocumentFromDrive, deleteDocumentFromDrive } from "@/lib/drive.functions";
 import {
   buildRateHeaderHtml,
   buildRateHeaderText,
