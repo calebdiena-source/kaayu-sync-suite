@@ -98,8 +98,10 @@ function OcrPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
-  const callAi = async (messages: any[]) => {
-    const { data, error } = await supabase.functions.invoke("ai-chat", { body: { messages } });
+  const callAi = async (messages: any[], model?: string) => {
+    const { data, error } = await supabase.functions.invoke("ai-chat", {
+      body: { messages, model },
+    });
     if (error) throw error;
     return (data?.reply as string) ?? "";
   };
@@ -115,22 +117,31 @@ function OcrPage() {
     setScanFileName(file.name);
     setSavedDocId(null);
     try {
-      const dataUrl = await fileToDataUrl(file);
-      const reply = await callAi([
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: "Tu es un OCR expert. Transcris fidèlement TOUT le texte visible dans ce document scanné (manuscrit ou imprimé) en français. Conserve les paragraphes, listes, titres et la structure. Renvoie uniquement le texte transcrit, sans commentaire.",
-            },
-            { type: "image_url", image_url: { url: dataUrl } },
-          ],
-        },
-      ]);
+      // PDF → images (Gemini ne lit pas les data:application/pdf via image_url)
+      const imageUrls = file.type === "application/pdf"
+        ? await pdfToImageDataUrls(file)
+        : [await fileToDataUrl(file)];
+      if (imageUrls.length === 0) throw new Error("Aucune page lisible");
+      const reply = await callAi(
+        [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: "Tu es un OCR expert. Transcris fidèlement TOUT le texte visible dans ce document scanné (manuscrit ou imprimé) en français. Conserve les paragraphes, listes, titres et la structure. Si plusieurs pages sont fournies, concatène-les dans l'ordre, séparées par une ligne vide. Renvoie uniquement le texte transcrit, sans commentaire.",
+              },
+              ...imageUrls.map((url) => ({ type: "image_url" as const, image_url: { url } })),
+            ],
+          },
+        ],
+        "google/gemini-2.5-flash",
+      );
       setText(reply);
       setResult(reply);
       toast.success("Document transcrit");
+    } catch (e: any) {
+      toast.error(e.message ?? "Échec de la transcription");
     } catch (e: any) {
       toast.error(e.message ?? "Échec de la transcription");
     } finally {
