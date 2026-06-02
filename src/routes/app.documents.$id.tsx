@@ -297,6 +297,48 @@ function DocumentPage() {
     }
   };
 
+  const handlePdfSaveCopy = useCallback(
+    async (newBytes: Uint8Array, newName: string) => {
+      if (!doc || !user) return;
+      // Bytes -> base64
+      let bin = "";
+      const chunk = 0x8000;
+      for (let i = 0; i < newBytes.length; i += chunk) {
+        bin += String.fromCharCode(...newBytes.subarray(i, i + chunk));
+      }
+      const b64 = btoa(bin);
+
+      if (doc.storage_provider === "drive") {
+        await uploadDrive({
+          data: {
+            name: newName,
+            mimeType: "application/pdf",
+            dataB64: b64,
+            folderId: null,
+          },
+        });
+      } else {
+        const path = `${user.id}/${Date.now()}-${newName}`;
+        const blob = new Blob([newBytes], { type: "application/pdf" });
+        const { error: upErr } = await supabase.storage
+          .from("documents")
+          .upload(path, blob, { contentType: "application/pdf" });
+        if (upErr) throw upErr;
+        const { error: insErr } = await supabase.from("documents").insert({
+          user_id: user.id,
+          name: newName,
+          storage_path: path,
+          mime_type: "application/pdf",
+          size_bytes: newBytes.byteLength,
+          folder_id: doc.folder_id ?? null,
+        });
+        if (insErr) throw insErr;
+      }
+    },
+    [doc, user, uploadDrive],
+  );
+
+
 
   const save = async () => {
     if (!doc || !user) return;
