@@ -184,6 +184,11 @@ function DocumentEditor() {
           navigate({ to: "/app/documents" });
           return;
         }
+        const isPdf = d.mime_type === "application/pdf" || /\.pdf$/i.test(d.name);
+        if (isPdf) {
+          navigate({ to: "/app/documents/$id", params: { id: d.id }, replace: true });
+          return;
+        }
         setDocName(d.name);
         setStoragePath(d.storage_path);
         setCanEdit(d.user_id === user.id);
@@ -205,6 +210,7 @@ function DocumentEditor() {
             setHtml(text || "<p></p>");
           }
         }
+
         setLoaded(true);
       } catch (e: any) {
         toast.error(e.message ?? "Erreur de chargement");
