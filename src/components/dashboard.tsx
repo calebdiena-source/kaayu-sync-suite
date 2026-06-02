@@ -92,32 +92,32 @@ export function Dashboard() {
   }, []);
 
   const load = async () => {
+    if (!user) return;
     const { data: r } = await supabase
       .from("exchange_rates")
       .select("*")
+      .eq("user_id", user.id)
       .order("rate_date", { ascending: false })
       .limit(3);
     const todays = (r ?? []).find((x) => x.rate_date === today());
     setRate(todays ?? { rate_date: today(), usd_to_fc: null, eur_to_usd: null, chf_to_usd: null });
     setHistory(r ?? []);
-    if (user) {
-      const [{ count: dc }, { count: mc }, { count: tc }, { count: ec }] = await Promise.all([
-        supabase
-          .from("documents")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", user.id),
-        supabase
-          .from("meetings")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", user.id),
-        supabase.from("tasks").select("*", { count: "exact", head: true }).eq("user_id", user.id),
-        supabase
-          .from("calendar_events")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", user.id),
-      ]);
-      setStats({ docs: dc ?? 0, meetings: mc ?? 0, tasks: tc ?? 0, events: ec ?? 0 });
-    }
+    const [{ count: dc }, { count: mc }, { count: tc }, { count: ec }] = await Promise.all([
+      supabase
+        .from("documents")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id),
+      supabase
+        .from("meetings")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id),
+      supabase.from("tasks").select("*", { count: "exact", head: true }).eq("user_id", user.id),
+      supabase
+        .from("calendar_events")
+        .select("*", { count: "exact", head: true })
+        .eq("user_id", user.id),
+    ]);
+    setStats({ docs: dc ?? 0, meetings: mc ?? 0, tasks: tc ?? 0, events: ec ?? 0 });
   };
 
   useEffect(() => {
@@ -132,11 +132,12 @@ export function Dashboard() {
       usd_to_fc: next.usd_to_fc,
       eur_to_usd: next.eur_to_usd,
       chf_to_usd: next.chf_to_usd,
+      user_id: user.id,
       updated_by: user.id,
     };
     const { data, error } = await supabase
       .from("exchange_rates")
-      .upsert(payload, { onConflict: "rate_date" })
+      .upsert(payload, { onConflict: "user_id,rate_date" })
       .select()
       .single();
     if (error) {
