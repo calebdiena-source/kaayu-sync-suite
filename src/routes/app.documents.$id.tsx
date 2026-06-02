@@ -41,6 +41,8 @@ type Doc = {
   user_id: string;
   size_bytes: number | null;
   created_at: string;
+  storage_provider?: string | null;
+  google_file_id?: string | null;
 };
 type Version = {
   id: string;
@@ -57,8 +59,12 @@ const TEXTUAL = ["text/html", "text/plain", "text/markdown"];
 function isDocx(d: Doc) {
   return d.mime_type === DOCX_MIME || /\.docx$/i.test(d.name);
 }
+function isPdf(d: Doc) {
+  return d.mime_type === "application/pdf" || /\.pdf$/i.test(d.name);
+}
 function isTextualDoc(d: Doc) {
   return TEXTUAL.includes(d.mime_type ?? "") || /\.(html|txt|md)$/i.test(d.name);
+
 }
 
 function htmlToText(html: string): string {
