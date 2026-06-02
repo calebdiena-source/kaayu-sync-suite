@@ -131,7 +131,7 @@ function OcrPage() {
                 type: "text",
                 text: "Tu es un OCR expert. Transcris fidèlement TOUT le texte visible dans ce document scanné (manuscrit ou imprimé) en français. Conserve les paragraphes, listes, titres et la structure. Si plusieurs pages sont fournies, concatène-les dans l'ordre, séparées par une ligne vide. Renvoie uniquement le texte transcrit, sans commentaire.",
               },
-              ...imageUrls.map((url) => ({ type: "image_url" as const, image_url: { url } })),
+              ...imageUrls.map((url) => ({ type: "image_url", image_url: { url } })),
             ],
           },
         ],
