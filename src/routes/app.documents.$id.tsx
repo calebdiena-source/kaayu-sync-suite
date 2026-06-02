@@ -492,32 +492,43 @@ function DocumentPage() {
         </button>
       </div>
 
-      {tab === "edit" && (
+      {tab === "edit" && pdf && (
         <div className="overflow-hidden rounded-xl border bg-card">
-          {pdf ? (
-            pdfError || !pdfUrl ? (
-              <div className="p-8 text-center text-sm text-muted-foreground">
-                {pdfError
-                  ? "Impossible d’afficher ce PDF. Veuillez le télécharger ou réessayer."
-                  : "Chargement du PDF…"}
-                {pdfError && (
-                  <div className="mt-3">
-                    <Button variant="outline" size="sm" onClick={downloadPdf}>
-                      <Download className="mr-1 h-4 w-4" />
-                      Télécharger
-                    </Button>
-                  </div>
-                )}
+          {pdfError ? (
+            <div className="p-8 text-center text-sm text-muted-foreground">
+              Impossible d’afficher ce PDF. Veuillez le télécharger ou réessayer.
+              <div className="mt-3">
+                <Button variant="outline" size="sm" onClick={downloadPdf}>
+                  <Download className="mr-1 h-4 w-4" />
+                  Télécharger
+                </Button>
               </div>
-            ) : (
-              <iframe
-                src={pdfUrl}
-                title={doc.name}
-                className="h-[80vh] w-full"
-                style={{ border: 0 }}
-              />
-            )
-          ) : editable ? (
+            </div>
+          ) : pdfEditing && pdfBytes ? (
+            <PdfEditor
+              bytes={pdfBytes}
+              fileName={doc.name}
+              canEdit={canEdit}
+              onSaveCopy={handlePdfSaveCopy}
+            />
+          ) : pdfUrl ? (
+            <iframe
+              src={pdfUrl}
+              title={doc.name}
+              className="h-[80vh] w-full"
+              style={{ border: 0 }}
+            />
+          ) : (
+            <div className="p-8 text-center text-sm text-muted-foreground">
+              Chargement du PDF…
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === "edit" && !pdf && (
+        <div className="overflow-hidden rounded-xl border bg-card">
+          {editable ? (
             <RichTextEditor
               value={html}
               onChange={setHtml}
