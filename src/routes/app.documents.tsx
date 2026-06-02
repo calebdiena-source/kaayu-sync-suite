@@ -509,13 +509,13 @@ function DocsPage() {
                 {filtered.map((d) => {
                   const currentFolder = folders.find((f) => f.id === d.folder_id);
                   const isOwner = d.user_id === user?.id;
+                  const isPdf = d.mime_type === "application/pdf" || /\.pdf$/i.test(d.name);
+                  const openTo = isPdf ? "/app/documents/$id" : "/app/documents/editor/$id";
                   return (
                     <tr
                       key={d.id}
                       className="cursor-pointer border-t hover:bg-muted/30"
-                      onDoubleClick={() =>
-                        navigate({ to: "/app/documents/editor/$id", params: { id: d.id } })
-                      }
+                      onDoubleClick={() => navigate({ to: openTo, params: { id: d.id } })}
                       onContextMenu={(e) => {
                         if (!isOwner) return;
                         e.preventDefault();
@@ -525,7 +525,7 @@ function DocsPage() {
                     >
                       <td className="px-3 py-2">
                         <Link
-                          to="/app/documents/editor/$id"
+                          to={openTo}
                           params={{ id: d.id }}
                           className="flex items-center gap-2 hover:underline"
                         >

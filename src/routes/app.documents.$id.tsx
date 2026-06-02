@@ -1,15 +1,26 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, useCallback } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Save, Download, History, Share2, RotateCcw, FileText } from "lucide-react";
+import {
+  ArrowLeft,
+  Save,
+  Download,
+  History,
+  Share2,
+  RotateCcw,
+  FileText,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { ShareDocumentDialog } from "@/components/share-document-dialog";
 import { exportTextToPDF } from "@/lib/exports";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import mammoth from "mammoth/mammoth.browser";
 import { Document, Packer, Paragraph, HeadingLevel, TextRun } from "docx";
+import { downloadDocumentFromDrive, deleteDocumentFromDrive } from "@/lib/drive.functions";
 import {
   buildRateHeaderHtml,
   buildRateHeaderText,
@@ -30,6 +41,8 @@ type Doc = {
   user_id: string;
   size_bytes: number | null;
   created_at: string;
+  storage_provider?: string | null;
+  google_file_id?: string | null;
 };
 type Version = {
   id: string;
@@ -46,8 +59,12 @@ const TEXTUAL = ["text/html", "text/plain", "text/markdown"];
 function isDocx(d: Doc) {
   return d.mime_type === DOCX_MIME || /\.docx$/i.test(d.name);
 }
+function isPdf(d: Doc) {
+  return d.mime_type === "application/pdf" || /\.pdf$/i.test(d.name);
+}
 function isTextualDoc(d: Doc) {
   return TEXTUAL.includes(d.mime_type ?? "") || /\.(html|txt|md)$/i.test(d.name);
+
 }
 
 function htmlToText(html: string): string {
@@ -139,8 +156,14 @@ function DocumentPage() {
   const [loaded, setLoaded] = useState(false);
   const [canEdit, setCanEdit] = useState(false);
   const [html, setHtml] = useState<string>("<p></p>");
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfError, setPdfError] = useState(false);
 
-  const editable = !!doc && (isTextualDoc(doc) || isDocx(doc));
+  const downloadDrive = useServerFn(downloadDocumentFromDrive);
+  const deleteDrive = useServerFn(deleteDocumentFromDrive);
+
+  const editable = !!doc && !isPdf(doc) && (isTextualDoc(doc) || isDocx(doc));
+  const pdf = !!doc && isPdf(doc);
 
   const loadVersions = useCallback(async () => {
     const { data } = await supabase
@@ -153,6 +176,7 @@ function DocumentPage() {
 
   useEffect(() => {
     if (!user) return;
+    let revokeUrl: string | null = null;
     (async () => {
       const { data: d, error } = await supabase
         .from("documents")
@@ -166,6 +190,37 @@ function DocumentPage() {
       }
       setDoc(d);
       setCanEdit(d.user_id === user.id);
+
+      if (isPdf(d)) {
+        try {
+          let blob: Blob | null = null;
+          if (d.storage_provider === "drive") {
+            const r = await downloadDrive({ data: { documentId: d.id } });
+            const bin = atob(r.dataB64);
+            const bytes = new Uint8Array(bin.length);
+            for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            blob = new Blob([bytes], { type: "application/pdf" });
+          } else {
+            const { data: b } = await supabase.storage
+              .from("documents")
+              .download(d.storage_path);
+            if (b) blob = new Blob([await b.arrayBuffer()], { type: "application/pdf" });
+          }
+          if (blob) {
+            const url = URL.createObjectURL(blob);
+            revokeUrl = url;
+            setPdfUrl(url);
+          } else {
+            setPdfError(true);
+          }
+        } catch {
+          setPdfError(true);
+        }
+        setLoaded(true);
+        loadVersions();
+        return;
+      }
+
       const { data: blob } = await supabase.storage.from("documents").download(d.storage_path);
       if (blob) {
         if (isDocx(d)) {
@@ -178,7 +233,6 @@ function DocumentPage() {
           }
         } else if (isTextualDoc(d)) {
           const text = await blob.text();
-          // Ensure rate header is present at the very top for textual docs
           const hasHeader = /data-rate-header="1"/.test(text);
           setHtml(
             hasHeader ? text : buildRateHeaderHtml(await fetchLatestRates()) + (text || "<p></p>"),
@@ -188,7 +242,54 @@ function DocumentPage() {
       setLoaded(true);
       loadVersions();
     })();
-  }, [user?.id, id, navigate, loadVersions]);
+    return () => {
+      if (revokeUrl) URL.revokeObjectURL(revokeUrl);
+    };
+  }, [user?.id, id, navigate, loadVersions, downloadDrive]);
+
+  const downloadPdf = async () => {
+    if (!doc) return;
+    try {
+      if (doc.storage_provider === "drive") {
+        const r = await downloadDrive({ data: { documentId: doc.id } });
+        const bin = atob(r.dataB64);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        const url = URL.createObjectURL(new Blob([bytes], { type: r.mimeType }));
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = doc.name;
+        a.click();
+        URL.revokeObjectURL(url);
+      } else {
+        const { data, error } = await supabase.storage
+          .from("documents")
+          .createSignedUrl(doc.storage_path, 60);
+        if (error) throw error;
+        window.open(data.signedUrl, "_blank");
+      }
+    } catch (e: any) {
+      toast.error(e.message ?? "Téléchargement impossible");
+    }
+  };
+
+  const removePdf = async () => {
+    if (!doc) return;
+    if (!confirm(`Supprimer "${doc.name}" ?`)) return;
+    try {
+      if (doc.storage_provider === "drive" && doc.google_file_id) {
+        await deleteDrive({ data: { fileId: doc.google_file_id } });
+      } else {
+        await supabase.storage.from("documents").remove([doc.storage_path]);
+      }
+      await supabase.from("documents").delete().eq("id", doc.id);
+      toast.success("Supprimé");
+      navigate({ to: "/app/documents" });
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  };
+
 
   const save = async () => {
     if (!doc || !user) return;
@@ -306,6 +407,12 @@ function DocumentPage() {
           <h2 className="text-lg font-semibold">{doc.name}</h2>
         </div>
         <div className="ml-auto flex flex-wrap gap-2">
+          {pdf && (
+            <Button variant="outline" size="sm" onClick={downloadPdf}>
+              <Download className="mr-1 h-4 w-4" />
+              Télécharger
+            </Button>
+          )}
           {editable && canEdit && (
             <Button onClick={save} disabled={saving} size="sm">
               <Save className="mr-1 h-4 w-4" />
@@ -340,7 +447,14 @@ function DocumentPage() {
               Partager
             </Button>
           )}
+          {pdf && canEdit && (
+            <Button variant="outline" size="sm" onClick={removePdf}>
+              <Trash2 className="mr-1 h-4 w-4" />
+              Supprimer
+            </Button>
+          )}
         </div>
+
       </div>
 
       <div className="flex gap-1 border-b">
@@ -361,7 +475,30 @@ function DocumentPage() {
 
       {tab === "edit" && (
         <div className="overflow-hidden rounded-xl border bg-card">
-          {editable ? (
+          {pdf ? (
+            pdfError || !pdfUrl ? (
+              <div className="p-8 text-center text-sm text-muted-foreground">
+                {pdfError
+                  ? "Impossible d’afficher ce PDF. Veuillez le télécharger ou réessayer."
+                  : "Chargement du PDF…"}
+                {pdfError && (
+                  <div className="mt-3">
+                    <Button variant="outline" size="sm" onClick={downloadPdf}>
+                      <Download className="mr-1 h-4 w-4" />
+                      Télécharger
+                    </Button>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <iframe
+                src={pdfUrl}
+                title={doc.name}
+                className="h-[80vh] w-full"
+                style={{ border: 0 }}
+              />
+            )
+          ) : editable ? (
             <RichTextEditor
               value={html}
               onChange={setHtml}
@@ -390,6 +527,7 @@ function DocumentPage() {
           )}
         </div>
       )}
+
 
       {tab === "versions" && (
         <div className="rounded-xl border bg-card">
