@@ -62,8 +62,7 @@ function RateField({
         {label}
       </div>
       <input
-        type="number"
-        step="any"
+        type="text"
         inputMode="decimal"
         value={text}
         onChange={(e) => setText(e.target.value)}
