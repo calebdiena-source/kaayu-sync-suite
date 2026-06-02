@@ -414,10 +414,22 @@ function DocumentPage() {
         </div>
         <div className="ml-auto flex flex-wrap gap-2">
           {pdf && (
-            <Button variant="outline" size="sm" onClick={downloadPdf}>
-              <Download className="mr-1 h-4 w-4" />
-              Télécharger
-            </Button>
+            <>
+              <Button variant="outline" size="sm" onClick={downloadPdf}>
+                <Download className="mr-1 h-4 w-4" />
+                Télécharger
+              </Button>
+              {canEdit && !pdfError && pdfBytes && (
+                <Button
+                  variant={pdfEditing ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setPdfEditing((v) => !v)}
+                >
+                  <Pencil className="mr-1 h-4 w-4" />
+                  {pdfEditing ? "Aperçu" : "Modifier le PDF"}
+                </Button>
+              )}
+            </>
           )}
           {editable && canEdit && (
             <Button onClick={save} disabled={saving} size="sm">
