@@ -22,13 +22,35 @@ export const Route = createFileRoute("/app/ocr")({
   component: OcrPage,
 });
 
-const fileToDataUrl = (file: File) =>
+const fileToDataUrl = (file: File | Blob) =>
   new Promise<string>((resolve, reject) => {
     const r = new FileReader();
     r.onload = () => resolve(r.result as string);
     r.onerror = reject;
     r.readAsDataURL(file);
   });
+
+async function pdfToImageDataUrls(file: File): Promise<string[]> {
+  const pdfjs: any = await import("pdfjs-dist");
+  // Worker via CDN matching installed version
+  const workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+  pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjs.getDocument({ data: buf }).promise;
+  const out: string[] = [];
+  const maxPages = Math.min(pdf.numPages, 10);
+  for (let i = 1; i <= maxPages; i++) {
+    const page = await pdf.getPage(i);
+    const viewport = page.getViewport({ scale: 2 });
+    const canvas = document.createElement("canvas");
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const ctx = canvas.getContext("2d")!;
+    await page.render({ canvasContext: ctx, viewport, canvas }).promise;
+    out.push(canvas.toDataURL("image/jpeg", 0.85));
+  }
+  return out;
+}
 
 const DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 
@@ -76,8 +98,10 @@ function OcrPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
 
-  const callAi = async (messages: any[]) => {
-    const { data, error } = await supabase.functions.invoke("ai-chat", { body: { messages } });
+  const callAi = async (messages: any[], model?: string) => {
+    const { data, error } = await supabase.functions.invoke("ai-chat", {
+      body: { messages, model },
+    });
     if (error) throw error;
     return (data?.reply as string) ?? "";
   };
@@ -93,19 +117,26 @@ function OcrPage() {
     setScanFileName(file.name);
     setSavedDocId(null);
     try {
-      const dataUrl = await fileToDataUrl(file);
-      const reply = await callAi([
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-              text: "Tu es un OCR expert. Transcris fidèlement TOUT le texte visible dans ce document scanné (manuscrit ou imprimé) en français. Conserve les paragraphes, listes, titres et la structure. Renvoie uniquement le texte transcrit, sans commentaire.",
-            },
-            { type: "image_url", image_url: { url: dataUrl } },
-          ],
-        },
-      ]);
+      // PDF → images (Gemini ne lit pas les data:application/pdf via image_url)
+      const imageUrls = file.type === "application/pdf"
+        ? await pdfToImageDataUrls(file)
+        : [await fileToDataUrl(file)];
+      if (imageUrls.length === 0) throw new Error("Aucune page lisible");
+      const reply = await callAi(
+        [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: "Tu es un OCR expert. Transcris fidèlement TOUT le texte visible dans ce document scanné (manuscrit ou imprimé) en français. Conserve les paragraphes, listes, titres et la structure. Si plusieurs pages sont fournies, concatène-les dans l'ordre, séparées par une ligne vide. Renvoie uniquement le texte transcrit, sans commentaire.",
+              },
+              ...imageUrls.map((url) => ({ type: "image_url" as const, image_url: { url } })),
+            ],
+          },
+        ],
+        "google/gemini-2.5-flash",
+      );
       setText(reply);
       setResult(reply);
       toast.success("Document transcrit");
