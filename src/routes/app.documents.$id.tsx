@@ -330,7 +330,7 @@ function DocumentPage() {
           storage_path: path,
           mime_type: "application/pdf",
           size_bytes: newBytes.byteLength,
-          folder_id: doc.folder_id ?? null,
+          folder_id: (doc as Doc & { folder_id?: string | null }).folder_id ?? null,
         });
         if (insErr) throw insErr;
       }
