@@ -20,7 +20,8 @@ import { exportTextToPDF } from "@/lib/exports";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import mammoth from "mammoth/mammoth.browser";
 import { Document, Packer, Paragraph, HeadingLevel, TextRun } from "docx";
-import { downloadDocumentFromDrive, deleteDocumentFromDrive } from "@/lib/drive.functions";
+import { downloadDocumentFromDrive, deleteDocumentFromDrive, uploadDocumentToDrive } from "@/lib/drive.functions";
+import { PdfEditor } from "@/components/pdf-editor";
 import {
   buildRateHeaderHtml,
   buildRateHeaderText,
