@@ -13,6 +13,7 @@ import {
   RotateCcw,
   FileText,
   Trash2,
+  Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ShareDocumentDialog } from "@/components/share-document-dialog";
