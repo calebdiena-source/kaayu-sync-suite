@@ -319,7 +319,7 @@ function DocumentPage() {
         });
       } else {
         const path = `${user.id}/${Date.now()}-${newName}`;
-        const blob = new Blob([newBytes], { type: "application/pdf" });
+        const blob = new Blob([newBytes as BlobPart], { type: "application/pdf" });
         const { error: upErr } = await supabase.storage
           .from("documents")
           .upload(path, blob, { contentType: "application/pdf" });
