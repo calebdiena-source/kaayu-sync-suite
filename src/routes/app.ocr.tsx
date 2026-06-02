@@ -142,8 +142,6 @@ function OcrPage() {
       toast.success("Document transcrit");
     } catch (e: any) {
       toast.error(e.message ?? "Échec de la transcription");
-    } catch (e: any) {
-      toast.error(e.message ?? "Échec de la transcription");
     } finally {
       setScanning(false);
       if (fileRef.current) fileRef.current.value = "";
