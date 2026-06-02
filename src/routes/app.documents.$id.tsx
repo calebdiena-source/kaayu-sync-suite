@@ -211,6 +211,8 @@ function DocumentPage() {
             if (b) blob = new Blob([await b.arrayBuffer()], { type: "application/pdf" });
           }
           if (blob) {
+            const buf = new Uint8Array(await blob.arrayBuffer());
+            setPdfBytes(buf);
             const url = URL.createObjectURL(blob);
             revokeUrl = url;
             setPdfUrl(url);
