@@ -13,6 +13,7 @@ import {
   RotateCcw,
   FileText,
   Trash2,
+  Pencil,
 } from "lucide-react";
 import { toast } from "sonner";
 import { ShareDocumentDialog } from "@/components/share-document-dialog";
@@ -20,7 +21,8 @@ import { exportTextToPDF } from "@/lib/exports";
 import { RichTextEditor } from "@/components/rich-text-editor";
 import mammoth from "mammoth/mammoth.browser";
 import { Document, Packer, Paragraph, HeadingLevel, TextRun } from "docx";
-import { downloadDocumentFromDrive, deleteDocumentFromDrive } from "@/lib/drive.functions";
+import { downloadDocumentFromDrive, deleteDocumentFromDrive, uploadDocumentToDrive } from "@/lib/drive.functions";
+import { PdfEditor } from "@/components/pdf-editor";
 import {
   buildRateHeaderHtml,
   buildRateHeaderText,
@@ -157,10 +159,13 @@ function DocumentPage() {
   const [canEdit, setCanEdit] = useState(false);
   const [html, setHtml] = useState<string>("<p></p>");
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null);
   const [pdfError, setPdfError] = useState(false);
+  const [pdfEditing, setPdfEditing] = useState(false);
 
   const downloadDrive = useServerFn(downloadDocumentFromDrive);
   const deleteDrive = useServerFn(deleteDocumentFromDrive);
+  const uploadDrive = useServerFn(uploadDocumentToDrive);
 
   const editable = !!doc && !isPdf(doc) && (isTextualDoc(doc) || isDocx(doc));
   const pdf = !!doc && isPdf(doc);
@@ -207,6 +212,8 @@ function DocumentPage() {
             if (b) blob = new Blob([await b.arrayBuffer()], { type: "application/pdf" });
           }
           if (blob) {
+            const buf = new Uint8Array(await blob.arrayBuffer());
+            setPdfBytes(buf);
             const url = URL.createObjectURL(blob);
             revokeUrl = url;
             setPdfUrl(url);
@@ -289,6 +296,48 @@ function DocumentPage() {
       toast.error(e.message);
     }
   };
+
+  const handlePdfSaveCopy = useCallback(
+    async (newBytes: Uint8Array, newName: string) => {
+      if (!doc || !user) return;
+      // Bytes -> base64
+      let bin = "";
+      const chunk = 0x8000;
+      for (let i = 0; i < newBytes.length; i += chunk) {
+        bin += String.fromCharCode(...newBytes.subarray(i, i + chunk));
+      }
+      const b64 = btoa(bin);
+
+      if (doc.storage_provider === "drive") {
+        await uploadDrive({
+          data: {
+            name: newName,
+            mimeType: "application/pdf",
+            dataB64: b64,
+            folderId: null,
+          },
+        });
+      } else {
+        const path = `${user.id}/${Date.now()}-${newName}`;
+        const blob = new Blob([newBytes as BlobPart], { type: "application/pdf" });
+        const { error: upErr } = await supabase.storage
+          .from("documents")
+          .upload(path, blob, { contentType: "application/pdf" });
+        if (upErr) throw upErr;
+        const { error: insErr } = await supabase.from("documents").insert({
+          user_id: user.id,
+          name: newName,
+          storage_path: path,
+          mime_type: "application/pdf",
+          size_bytes: newBytes.byteLength,
+          folder_id: (doc as Doc & { folder_id?: string | null }).folder_id ?? null,
+        });
+        if (insErr) throw insErr;
+      }
+    },
+    [doc, user, uploadDrive],
+  );
+
 
 
   const save = async () => {
@@ -408,10 +457,22 @@ function DocumentPage() {
         </div>
         <div className="ml-auto flex flex-wrap gap-2">
           {pdf && (
-            <Button variant="outline" size="sm" onClick={downloadPdf}>
-              <Download className="mr-1 h-4 w-4" />
-              Télécharger
-            </Button>
+            <>
+              <Button variant="outline" size="sm" onClick={downloadPdf}>
+                <Download className="mr-1 h-4 w-4" />
+                Télécharger
+              </Button>
+              {canEdit && !pdfError && pdfBytes && (
+                <Button
+                  variant={pdfEditing ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setPdfEditing((v) => !v)}
+                >
+                  <Pencil className="mr-1 h-4 w-4" />
+                  {pdfEditing ? "Aperçu" : "Modifier le PDF"}
+                </Button>
+              )}
+            </>
           )}
           {editable && canEdit && (
             <Button onClick={save} disabled={saving} size="sm">
@@ -473,32 +534,43 @@ function DocumentPage() {
         </button>
       </div>
 
-      {tab === "edit" && (
+      {tab === "edit" && pdf && (
         <div className="overflow-hidden rounded-xl border bg-card">
-          {pdf ? (
-            pdfError || !pdfUrl ? (
-              <div className="p-8 text-center text-sm text-muted-foreground">
-                {pdfError
-                  ? "Impossible d’afficher ce PDF. Veuillez le télécharger ou réessayer."
-                  : "Chargement du PDF…"}
-                {pdfError && (
-                  <div className="mt-3">
-                    <Button variant="outline" size="sm" onClick={downloadPdf}>
-                      <Download className="mr-1 h-4 w-4" />
-                      Télécharger
-                    </Button>
-                  </div>
-                )}
+          {pdfError ? (
+            <div className="p-8 text-center text-sm text-muted-foreground">
+              Impossible d’afficher ce PDF. Veuillez le télécharger ou réessayer.
+              <div className="mt-3">
+                <Button variant="outline" size="sm" onClick={downloadPdf}>
+                  <Download className="mr-1 h-4 w-4" />
+                  Télécharger
+                </Button>
               </div>
-            ) : (
-              <iframe
-                src={pdfUrl}
-                title={doc.name}
-                className="h-[80vh] w-full"
-                style={{ border: 0 }}
-              />
-            )
-          ) : editable ? (
+            </div>
+          ) : pdfEditing && pdfBytes ? (
+            <PdfEditor
+              bytes={pdfBytes}
+              fileName={doc.name}
+              canEdit={canEdit}
+              onSaveCopy={handlePdfSaveCopy}
+            />
+          ) : pdfUrl ? (
+            <iframe
+              src={pdfUrl}
+              title={doc.name}
+              className="h-[80vh] w-full"
+              style={{ border: 0 }}
+            />
+          ) : (
+            <div className="p-8 text-center text-sm text-muted-foreground">
+              Chargement du PDF…
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === "edit" && !pdf && (
+        <div className="overflow-hidden rounded-xl border bg-card">
+          {editable ? (
             <RichTextEditor
               value={html}
               onChange={setHtml}
