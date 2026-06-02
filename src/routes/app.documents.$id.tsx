@@ -158,10 +158,13 @@ function DocumentPage() {
   const [canEdit, setCanEdit] = useState(false);
   const [html, setHtml] = useState<string>("<p></p>");
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null);
   const [pdfError, setPdfError] = useState(false);
+  const [pdfEditing, setPdfEditing] = useState(false);
 
   const downloadDrive = useServerFn(downloadDocumentFromDrive);
   const deleteDrive = useServerFn(deleteDocumentFromDrive);
+  const uploadDrive = useServerFn(uploadDocumentToDrive);
 
   const editable = !!doc && !isPdf(doc) && (isTextualDoc(doc) || isDocx(doc));
   const pdf = !!doc && isPdf(doc);
