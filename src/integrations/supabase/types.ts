@@ -258,6 +258,7 @@ export type Database = {
           updated_at: string
           updated_by: string | null
           usd_to_fc: number | null
+          user_id: string
         }
         Insert: {
           chf_to_usd?: number | null
@@ -268,6 +269,7 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
           usd_to_fc?: number | null
+          user_id: string
         }
         Update: {
           chf_to_usd?: number | null
@@ -278,6 +280,7 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
           usd_to_fc?: number | null
+          user_id?: string
         }
         Relationships: []
       }
