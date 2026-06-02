@@ -407,6 +407,12 @@ function DocumentPage() {
           <h2 className="text-lg font-semibold">{doc.name}</h2>
         </div>
         <div className="ml-auto flex flex-wrap gap-2">
+          {pdf && (
+            <Button variant="outline" size="sm" onClick={downloadPdf}>
+              <Download className="mr-1 h-4 w-4" />
+              Télécharger
+            </Button>
+          )}
           {editable && canEdit && (
             <Button onClick={save} disabled={saving} size="sm">
               <Save className="mr-1 h-4 w-4" />
@@ -441,7 +447,14 @@ function DocumentPage() {
               Partager
             </Button>
           )}
+          {pdf && canEdit && (
+            <Button variant="outline" size="sm" onClick={removePdf}>
+              <Trash2 className="mr-1 h-4 w-4" />
+              Supprimer
+            </Button>
+          )}
         </div>
+
       </div>
 
       <div className="flex gap-1 border-b">
