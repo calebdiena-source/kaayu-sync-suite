@@ -475,15 +475,6 @@ function DocumentPage() {
 
       {tab === "edit" && (
         <div className="overflow-hidden rounded-xl border bg-card">
-          {editable ? (
-            <RichTextEditor
-              value={html}
-              onChange={setHtml}
-              editable={canEdit}
-              placeholder="Commencez à écrire votre document…"
-            />
-      {tab === "edit" && (
-        <div className="overflow-hidden rounded-xl border bg-card">
           {pdf ? (
             pdfError || !pdfUrl ? (
               <div className="p-8 text-center text-sm text-muted-foreground">
