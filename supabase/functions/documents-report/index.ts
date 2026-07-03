@@ -448,18 +448,15 @@ ${JSON.stringify(perDocSummaries.map((s) => ({ name: s.name, category: (s as any
  
 Réponds STRICTEMENT en JSON valide de la forme : {"synthesis": "<le texte de la synthèse, en markdown léger>", "recommendations": ["...", "..."]}.`;
 
-    const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: "Tu produis un texte de synthèse documentaire renvoyé strictement en JSON {\"synthesis\": \"...\"}." },
-          { role: "user", content: synthesisPrompt },
-        ],
-        response_format: { type: "json_object" },
-      }),
-    });
+    const aiRes = await callAiWithRetry({
+      model: "google/gemini-2.5-flash",
+      messages: [
+        { role: "system", content: "Tu produis un texte de synthèse documentaire renvoyé strictement en JSON {\"synthesis\": \"...\"}." },
+        { role: "user", content: synthesisPrompt },
+      ],
+      response_format: { type: "json_object" },
+    }, LOVABLE_API_KEY);
+
 
     if (!aiRes.ok) {
       if (aiRes.status === 429)
