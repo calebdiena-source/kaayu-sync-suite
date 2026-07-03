@@ -354,74 +354,74 @@ serve(async (req) => {
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([date, count]) => ({ date, count }));
 
-    // 3) Résumer chaque document via l'IA (parallélisé, 1 appel par doc)
-    const perDocSummaries = await Promise.all(
-      docsForAi.map(async (f) => {
-        const id = f.id;
-        const header = `Nom: ${f.name}\nType: ${f.mime ?? "inconnu"}\nCatégorie: ${f.category ?? "—"}\nTags: ${(f.tags ?? []).join(", ") || "—"}\nDate du document: ${f.doc_date ?? "(non détectée, fallback création: " + (f.created_at?.slice(0, 10) ?? "—") + ")"}`;
+    // 3) Résumer chaque document via l'IA — concurrence limitée + retry sur 429
+    const perDocSummaries = await mapWithConcurrency(docsForAi, AI_CONCURRENCY, async (f) => {
+      const id = f.id;
+      const header = `Nom: ${f.name}\nType: ${f.mime ?? "inconnu"}\nCatégorie: ${f.category ?? "—"}\nTags: ${(f.tags ?? []).join(", ") || "—"}\nDate du document: ${f.doc_date ?? "(non détectée, fallback création: " + (f.created_at?.slice(0, 10) ?? "—") + ")"}`;
 
-        let userContent: any;
-        if (f.kind === "text" || f.kind === "pdf_text") {
-          if (!f.content || f.content.trim().length < 20) {
-            return {
-              id,
-              name: f.name,
-              summary: f.kind === "pdf_text"
-                ? "PDF probablement scanné/sans texte extractible."
-                : "Document vide ou trop court pour analyse.",
-              key_points: [],
-            };
-          }
-          userContent = `${header}\n\nContenu extrait (tronqué):\n"""\n${f.content}\n"""\n\nRéponds en JSON: {"summary": "résumé 2-4 phrases", "key_points": ["3 à 6 puces"]}`;
-        } else if (f.kind === "image") {
-          userContent = [
-            { type: "text", text: `${header}\n\nAnalyse le contenu visible de l'image (texte, schémas, sujet) et réponds en JSON: {"summary": "résumé 2-4 phrases", "key_points": ["3 à 6 puces"]}` },
-            { type: "image_url", image_url: { url: f.dataUrl } },
-          ];
-        } else {
+      let userContent: any;
+      if (f.kind === "text" || f.kind === "pdf_text") {
+        if (!f.content || f.content.trim().length < 20) {
           return {
             id,
             name: f.name,
-            summary: f.note ?? "Contenu non analysé.",
+            summary: f.kind === "pdf_text"
+              ? "PDF probablement scanné/sans texte extractible."
+              : "Document vide ou trop court pour analyse.",
             key_points: [],
           };
         }
+        userContent = `${header}\n\nContenu extrait (tronqué):\n"""\n${f.content}\n"""\n\nRéponds en JSON: {"summary": "résumé 2-4 phrases", "key_points": ["3 à 6 puces"]}`;
+      } else if (f.kind === "image") {
+        userContent = [
+          { type: "text", text: `${header}\n\nAnalyse le contenu visible de l'image (texte, schémas, sujet) et réponds en JSON: {"summary": "résumé 2-4 phrases", "key_points": ["3 à 6 puces"]}` },
+          { type: "image_url", image_url: { url: f.dataUrl } },
+        ];
+      } else {
+        return {
+          id,
+          name: f.name,
+          summary: f.note ?? "Contenu non analysé.",
+          key_points: [],
+        };
+      }
 
-        try {
-          const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-            method: "POST",
-            headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              model: "google/gemini-2.5-flash",
-              messages: [
-                { role: "system", content: "Tu es un analyste documentaire. Réponds STRICTEMENT en JSON valide, en français." },
-                { role: "user", content: userContent },
-              ],
-              response_format: { type: "json_object" },
-            }),
-          });
-          if (!r.ok) {
-            const t = await r.text();
-            console.error("per-doc AI error", r.status, t.slice(0, 200));
-            return { id, name: f.name, summary: `Analyse indisponible (${r.status}).`, key_points: [] };
-          }
-          const j = await r.json();
-          const raw = j?.choices?.[0]?.message?.content ?? "{}";
-          let parsed: any = {};
-          try { parsed = JSON.parse(raw); } catch { parsed = { summary: String(raw).slice(0, 400), key_points: [] }; }
-          return {
-            id,
-            name: f.name,
-            category: f.category,
-            mime: f.mime,
-            summary: typeof parsed.summary === "string" ? parsed.summary : "",
-            key_points: Array.isArray(parsed.key_points) ? parsed.key_points.filter((x: any) => typeof x === "string").slice(0, 8) : [],
-          };
-        } catch (e: any) {
-          return { id, name: f.name, summary: `Erreur d'analyse: ${e?.message ?? "inconnue"}`, key_points: [] };
+      try {
+        const r = await callAiWithRetry({
+          model: "google/gemini-2.5-flash",
+          messages: [
+            { role: "system", content: "Tu es un analyste documentaire. Réponds STRICTEMENT en JSON valide, en français." },
+            { role: "user", content: userContent },
+          ],
+          response_format: { type: "json_object" },
+        }, LOVABLE_API_KEY);
+        if (!r.ok) {
+          const t = await r.text();
+          console.error("per-doc AI error", r.status, t.slice(0, 200));
+          const msg = r.status === 429
+            ? "Analyse temporairement limitée (quota IA atteint)."
+            : r.status === 402
+              ? "Crédits IA épuisés."
+              : `Analyse indisponible (${r.status}).`;
+          return { id, name: f.name, category: f.category, mime: f.mime, summary: msg, key_points: [] };
         }
-      }),
-    );
+        const j = await r.json();
+        const raw = j?.choices?.[0]?.message?.content ?? "{}";
+        let parsed: any = {};
+        try { parsed = JSON.parse(raw); } catch { parsed = { summary: String(raw).slice(0, 400), key_points: [] }; }
+        return {
+          id,
+          name: f.name,
+          category: f.category,
+          mime: f.mime,
+          summary: typeof parsed.summary === "string" ? parsed.summary : "",
+          key_points: Array.isArray(parsed.key_points) ? parsed.key_points.filter((x: any) => typeof x === "string").slice(0, 8) : [],
+        };
+      } catch (e: any) {
+        return { id, name: f.name, category: f.category, mime: f.mime, summary: `Erreur d'analyse: ${e?.message ?? "inconnue"}`, key_points: [] };
+      }
+    });
+
 
     const stats = {
       documents: {
