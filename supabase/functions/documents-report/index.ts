@@ -7,8 +7,44 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const MAX_FILES = 40;            // hard cap to keep latency & cost predictable
+const MAX_FILES = 25;            // hard cap to keep latency & cost predictable
 const MAX_CHARS_PER_FILE = 8000; // text excerpt per doc sent to AI
+const AI_CONCURRENCY = 3;        // parallel per-doc AI calls (gateway rate limits ~aggressively)
+const AI_MAX_RETRIES = 4;        // retry on 429 with exponential backoff
+
+async function callAiWithRetry(body: any, apiKey: string): Promise<Response> {
+  let delay = 800;
+  for (let attempt = 0; attempt <= AI_MAX_RETRIES; attempt++) {
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (res.status !== 429 || attempt === AI_MAX_RETRIES) return res;
+    // Respect Retry-After if provided, otherwise exponential backoff
+    const ra = Number(res.headers.get("retry-after"));
+    const wait = Number.isFinite(ra) && ra > 0 ? ra * 1000 : delay + Math.floor(Math.random() * 300);
+    await new Promise((r) => setTimeout(r, wait));
+    delay = Math.min(delay * 2, 8000);
+  }
+  // Unreachable, but satisfies TS
+  return new Response("rate limited", { status: 429 });
+}
+
+async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (true) {
+      const i = cursor++;
+      if (i >= items.length) return;
+      results[i] = await fn(items[i], i);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
 const TEXTUAL_MIMES = [
   "text/",
   "application/json",
