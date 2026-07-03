@@ -308,7 +308,27 @@ function ReportsPage() {
     setActiveId(null);
     try {
       const { data, error } = await supabase.functions.invoke(fnName, { body });
-      if (error) throw error;
+      if (error) {
+        // supabase-js masque le vrai message ("Edge Function returned a non-2xx status code").
+        // On récupère le corps JSON renvoyé par la fonction pour afficher le vrai motif.
+        let realMsg = error.message || "Échec de la génération";
+        try {
+          const ctx = (error as any)?.context;
+          if (ctx && typeof ctx.text === "function") {
+            const txt = await ctx.text();
+            try {
+              const j = JSON.parse(txt);
+              if (j?.error) realMsg = j.error;
+              else if (j?.message) realMsg = j.message;
+            } catch {
+              if (txt) realMsg = txt.slice(0, 300);
+            }
+          }
+        } catch {
+          /* ignore */
+        }
+        throw new Error(realMsg);
+      }
       if (data?.error) throw new Error(data.error);
       setStats(kind === "global" ? normalizeGlobalStats(data.stats) : normalizeDocsStats(data.stats));
       setReport(kind === "global" ? normalizeGlobalReport(data.report) : normalizeDocsReport(data.report));
