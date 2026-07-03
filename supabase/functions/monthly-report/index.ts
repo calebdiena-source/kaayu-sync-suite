@@ -153,21 +153,32 @@ Produis un rapport structuré en JSON avec :
 
 Réponds UNIQUEMENT avec le JSON valide, sans markdown.`;
 
-    const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          {
-            role: "system",
-            content: "Tu produis des rapports d'analyse en JSON valide uniquement.",
-          },
-          { role: "user", content: prompt },
-        ],
-        response_format: { type: "json_object" },
-      }),
+    async function callAi(body: any, retries = 4): Promise<Response> {
+      let delay = 800;
+      for (let i = 0; i <= retries; i++) {
+        const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (r.status !== 429 || i === retries) return r;
+        const ra = Number(r.headers.get("retry-after"));
+        const wait = Number.isFinite(ra) && ra > 0 ? ra * 1000 : delay + Math.floor(Math.random() * 300);
+        await new Promise((res) => setTimeout(res, wait));
+        delay = Math.min(delay * 2, 8000);
+      }
+      return new Response("rate limited", { status: 429 });
+    }
+
+    const aiRes = await callAi({
+      model: "google/gemini-2.5-flash",
+      messages: [
+        { role: "system", content: "Tu produis des rapports d'analyse en JSON valide uniquement." },
+        { role: "user", content: prompt },
+      ],
+      response_format: { type: "json_object" },
     });
+
 
     if (!aiRes.ok) {
       if (aiRes.status === 429)

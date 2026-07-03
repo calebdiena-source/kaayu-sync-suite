@@ -7,8 +7,44 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const MAX_FILES = 40;            // hard cap to keep latency & cost predictable
+const MAX_FILES = 25;            // hard cap to keep latency & cost predictable
 const MAX_CHARS_PER_FILE = 8000; // text excerpt per doc sent to AI
+const AI_CONCURRENCY = 3;        // parallel per-doc AI calls (gateway rate limits ~aggressively)
+const AI_MAX_RETRIES = 4;        // retry on 429 with exponential backoff
+
+async function callAiWithRetry(body: any, apiKey: string): Promise<Response> {
+  let delay = 800;
+  for (let attempt = 0; attempt <= AI_MAX_RETRIES; attempt++) {
+    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (res.status !== 429 || attempt === AI_MAX_RETRIES) return res;
+    // Respect Retry-After if provided, otherwise exponential backoff
+    const ra = Number(res.headers.get("retry-after"));
+    const wait = Number.isFinite(ra) && ra > 0 ? ra * 1000 : delay + Math.floor(Math.random() * 300);
+    await new Promise((r) => setTimeout(r, wait));
+    delay = Math.min(delay * 2, 8000);
+  }
+  // Unreachable, but satisfies TS
+  return new Response("rate limited", { status: 429 });
+}
+
+async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let cursor = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (true) {
+      const i = cursor++;
+      if (i >= items.length) return;
+      results[i] = await fn(items[i], i);
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
 const TEXTUAL_MIMES = [
   "text/",
   "application/json",
@@ -318,74 +354,74 @@ serve(async (req) => {
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([date, count]) => ({ date, count }));
 
-    // 3) Résumer chaque document via l'IA (parallélisé, 1 appel par doc)
-    const perDocSummaries = await Promise.all(
-      docsForAi.map(async (f) => {
-        const id = f.id;
-        const header = `Nom: ${f.name}\nType: ${f.mime ?? "inconnu"}\nCatégorie: ${f.category ?? "—"}\nTags: ${(f.tags ?? []).join(", ") || "—"}\nDate du document: ${f.doc_date ?? "(non détectée, fallback création: " + (f.created_at?.slice(0, 10) ?? "—") + ")"}`;
+    // 3) Résumer chaque document via l'IA — concurrence limitée + retry sur 429
+    const perDocSummaries = await mapWithConcurrency(docsForAi, AI_CONCURRENCY, async (f) => {
+      const id = f.id;
+      const header = `Nom: ${f.name}\nType: ${f.mime ?? "inconnu"}\nCatégorie: ${f.category ?? "—"}\nTags: ${(f.tags ?? []).join(", ") || "—"}\nDate du document: ${f.doc_date ?? "(non détectée, fallback création: " + (f.created_at?.slice(0, 10) ?? "—") + ")"}`;
 
-        let userContent: any;
-        if (f.kind === "text" || f.kind === "pdf_text") {
-          if (!f.content || f.content.trim().length < 20) {
-            return {
-              id,
-              name: f.name,
-              summary: f.kind === "pdf_text"
-                ? "PDF probablement scanné/sans texte extractible."
-                : "Document vide ou trop court pour analyse.",
-              key_points: [],
-            };
-          }
-          userContent = `${header}\n\nContenu extrait (tronqué):\n"""\n${f.content}\n"""\n\nRéponds en JSON: {"summary": "résumé 2-4 phrases", "key_points": ["3 à 6 puces"]}`;
-        } else if (f.kind === "image") {
-          userContent = [
-            { type: "text", text: `${header}\n\nAnalyse le contenu visible de l'image (texte, schémas, sujet) et réponds en JSON: {"summary": "résumé 2-4 phrases", "key_points": ["3 à 6 puces"]}` },
-            { type: "image_url", image_url: { url: f.dataUrl } },
-          ];
-        } else {
+      let userContent: any;
+      if (f.kind === "text" || f.kind === "pdf_text") {
+        if (!f.content || f.content.trim().length < 20) {
           return {
             id,
             name: f.name,
-            summary: f.note ?? "Contenu non analysé.",
+            summary: f.kind === "pdf_text"
+              ? "PDF probablement scanné/sans texte extractible."
+              : "Document vide ou trop court pour analyse.",
             key_points: [],
           };
         }
+        userContent = `${header}\n\nContenu extrait (tronqué):\n"""\n${f.content}\n"""\n\nRéponds en JSON: {"summary": "résumé 2-4 phrases", "key_points": ["3 à 6 puces"]}`;
+      } else if (f.kind === "image") {
+        userContent = [
+          { type: "text", text: `${header}\n\nAnalyse le contenu visible de l'image (texte, schémas, sujet) et réponds en JSON: {"summary": "résumé 2-4 phrases", "key_points": ["3 à 6 puces"]}` },
+          { type: "image_url", image_url: { url: f.dataUrl } },
+        ];
+      } else {
+        return {
+          id,
+          name: f.name,
+          summary: f.note ?? "Contenu non analysé.",
+          key_points: [],
+        };
+      }
 
-        try {
-          const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-            method: "POST",
-            headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              model: "google/gemini-2.5-flash",
-              messages: [
-                { role: "system", content: "Tu es un analyste documentaire. Réponds STRICTEMENT en JSON valide, en français." },
-                { role: "user", content: userContent },
-              ],
-              response_format: { type: "json_object" },
-            }),
-          });
-          if (!r.ok) {
-            const t = await r.text();
-            console.error("per-doc AI error", r.status, t.slice(0, 200));
-            return { id, name: f.name, summary: `Analyse indisponible (${r.status}).`, key_points: [] };
-          }
-          const j = await r.json();
-          const raw = j?.choices?.[0]?.message?.content ?? "{}";
-          let parsed: any = {};
-          try { parsed = JSON.parse(raw); } catch { parsed = { summary: String(raw).slice(0, 400), key_points: [] }; }
-          return {
-            id,
-            name: f.name,
-            category: f.category,
-            mime: f.mime,
-            summary: typeof parsed.summary === "string" ? parsed.summary : "",
-            key_points: Array.isArray(parsed.key_points) ? parsed.key_points.filter((x: any) => typeof x === "string").slice(0, 8) : [],
-          };
-        } catch (e: any) {
-          return { id, name: f.name, summary: `Erreur d'analyse: ${e?.message ?? "inconnue"}`, key_points: [] };
+      try {
+        const r = await callAiWithRetry({
+          model: "google/gemini-2.5-flash",
+          messages: [
+            { role: "system", content: "Tu es un analyste documentaire. Réponds STRICTEMENT en JSON valide, en français." },
+            { role: "user", content: userContent },
+          ],
+          response_format: { type: "json_object" },
+        }, LOVABLE_API_KEY);
+        if (!r.ok) {
+          const t = await r.text();
+          console.error("per-doc AI error", r.status, t.slice(0, 200));
+          const msg = r.status === 429
+            ? "Analyse temporairement limitée (quota IA atteint)."
+            : r.status === 402
+              ? "Crédits IA épuisés."
+              : `Analyse indisponible (${r.status}).`;
+          return { id, name: f.name, category: f.category, mime: f.mime, summary: msg, key_points: [] };
         }
-      }),
-    );
+        const j = await r.json();
+        const raw = j?.choices?.[0]?.message?.content ?? "{}";
+        let parsed: any = {};
+        try { parsed = JSON.parse(raw); } catch { parsed = { summary: String(raw).slice(0, 400), key_points: [] }; }
+        return {
+          id,
+          name: f.name,
+          category: f.category,
+          mime: f.mime,
+          summary: typeof parsed.summary === "string" ? parsed.summary : "",
+          key_points: Array.isArray(parsed.key_points) ? parsed.key_points.filter((x: any) => typeof x === "string").slice(0, 8) : [],
+        };
+      } catch (e: any) {
+        return { id, name: f.name, category: f.category, mime: f.mime, summary: `Erreur d'analyse: ${e?.message ?? "inconnue"}`, key_points: [] };
+      }
+    });
+
 
     const stats = {
       documents: {
@@ -412,48 +448,45 @@ ${JSON.stringify(perDocSummaries.map((s) => ({ name: s.name, category: (s as any
  
 Réponds STRICTEMENT en JSON valide de la forme : {"synthesis": "<le texte de la synthèse, en markdown léger>", "recommendations": ["...", "..."]}.`;
 
-    const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash",
-        messages: [
-          { role: "system", content: "Tu produis un texte de synthèse documentaire renvoyé strictement en JSON {\"synthesis\": \"...\"}." },
-          { role: "user", content: synthesisPrompt },
-        ],
-        response_format: { type: "json_object" },
-      }),
-    });
+    const aiRes = await callAiWithRetry({
+      model: "google/gemini-2.5-flash",
+      messages: [
+        { role: "system", content: "Tu produis un texte de synthèse documentaire renvoyé strictement en JSON {\"synthesis\": \"...\"}." },
+        { role: "user", content: synthesisPrompt },
+      ],
+      response_format: { type: "json_object" },
+    }, LOVABLE_API_KEY);
 
-    if (!aiRes.ok) {
-      if (aiRes.status === 429)
-        return new Response(JSON.stringify({ error: "Trop de requêtes IA, réessayez plus tard." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      if (aiRes.status === 402)
-        return new Response(JSON.stringify({ error: "Crédits IA épuisés." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      const t = await aiRes.text();
-      console.error("AI error", aiRes.status, t);
-      throw new Error("Erreur du service IA");
-    }
 
-    const aiJson = await aiRes.json();
-    const raw = aiJson?.choices?.[0]?.message?.content ?? "{}";
     let synthesis = "";
     let recommendations: string[] = [];
-    try {
-      const parsed = JSON.parse(raw);
-      synthesis = typeof parsed.synthesis === "string" ? parsed.synthesis : String(raw);
-      if (Array.isArray(parsed.recommendations)) {
-        recommendations = parsed.recommendations.filter((x: any) => typeof x === "string").slice(0, 10);
+
+    if (!aiRes.ok) {
+      // Dégradation gracieuse : on garde les résumés par document et on fabrique
+      // une synthèse minimale plutôt que de faire échouer tout le rapport.
+      const t = await aiRes.text().catch(() => "");
+      console.error("synthesis AI error", aiRes.status, t.slice(0, 200));
+      const reason = aiRes.status === 429
+        ? "quota IA temporairement atteint"
+        : aiRes.status === 402
+          ? "crédits IA épuisés"
+          : `erreur IA ${aiRes.status}`;
+      synthesis = `Synthèse automatique indisponible (${reason}). Les résumés par document ci-dessous restent disponibles.`;
+      recommendations = [];
+    } else {
+      const aiJson = await aiRes.json();
+      const raw = aiJson?.choices?.[0]?.message?.content ?? "{}";
+      try {
+        const parsed = JSON.parse(raw);
+        synthesis = typeof parsed.synthesis === "string" ? parsed.synthesis : String(raw);
+        if (Array.isArray(parsed.recommendations)) {
+          recommendations = parsed.recommendations.filter((x: any) => typeof x === "string").slice(0, 10);
+        }
+      } catch {
+        synthesis = String(raw);
       }
-    } catch {
-      synthesis = String(raw);
     }
+
     const report = { synthesis, recommendations, per_document: perDocSummaries };
 
     return new Response(
