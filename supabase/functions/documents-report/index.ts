@@ -458,35 +458,35 @@ Réponds STRICTEMENT en JSON valide de la forme : {"synthesis": "<le texte de la
     }, LOVABLE_API_KEY);
 
 
-    if (!aiRes.ok) {
-      if (aiRes.status === 429)
-        return new Response(JSON.stringify({ error: "Trop de requêtes IA, réessayez plus tard." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      if (aiRes.status === 402)
-        return new Response(JSON.stringify({ error: "Crédits IA épuisés." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      const t = await aiRes.text();
-      console.error("AI error", aiRes.status, t);
-      throw new Error("Erreur du service IA");
-    }
-
-    const aiJson = await aiRes.json();
-    const raw = aiJson?.choices?.[0]?.message?.content ?? "{}";
     let synthesis = "";
     let recommendations: string[] = [];
-    try {
-      const parsed = JSON.parse(raw);
-      synthesis = typeof parsed.synthesis === "string" ? parsed.synthesis : String(raw);
-      if (Array.isArray(parsed.recommendations)) {
-        recommendations = parsed.recommendations.filter((x: any) => typeof x === "string").slice(0, 10);
+
+    if (!aiRes.ok) {
+      // Dégradation gracieuse : on garde les résumés par document et on fabrique
+      // une synthèse minimale plutôt que de faire échouer tout le rapport.
+      const t = await aiRes.text().catch(() => "");
+      console.error("synthesis AI error", aiRes.status, t.slice(0, 200));
+      const reason = aiRes.status === 429
+        ? "quota IA temporairement atteint"
+        : aiRes.status === 402
+          ? "crédits IA épuisés"
+          : `erreur IA ${aiRes.status}`;
+      synthesis = `Synthèse automatique indisponible (${reason}). Les résumés par document ci-dessous restent disponibles.`;
+      recommendations = [];
+    } else {
+      const aiJson = await aiRes.json();
+      const raw = aiJson?.choices?.[0]?.message?.content ?? "{}";
+      try {
+        const parsed = JSON.parse(raw);
+        synthesis = typeof parsed.synthesis === "string" ? parsed.synthesis : String(raw);
+        if (Array.isArray(parsed.recommendations)) {
+          recommendations = parsed.recommendations.filter((x: any) => typeof x === "string").slice(0, 10);
+        }
+      } catch {
+        synthesis = String(raw);
       }
-    } catch {
-      synthesis = String(raw);
     }
+
     const report = { synthesis, recommendations, per_document: perDocSummaries };
 
     return new Response(
