@@ -10,24 +10,34 @@ const corsHeaders = {
 const MAX_FILES = 25;            // hard cap to keep latency & cost predictable
 const MAX_CHARS_PER_FILE = 8000; // text excerpt per doc sent to AI
 const AI_CONCURRENCY = 3;        // parallel per-doc AI calls (gateway rate limits ~aggressively)
-const AI_MAX_RETRIES = 4;        // retry on 429 with exponential backoff
+const AI_MAX_RETRIES = 8;         // retry on 429 with exponential backoff
+const AI_FETCH_TIMEOUT_MS = 120000; // 2 min par appel IA (modèles lents / prompts longs)
 
 async function callAiWithRetry(body: any, apiKey: string): Promise<Response> {
-  let delay = 800;
+  let delay = 1000;
   for (let attempt = 0; attempt <= AI_MAX_RETRIES; attempt++) {
-    const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (res.status !== 429 || attempt === AI_MAX_RETRIES) return res;
-    // Respect Retry-After if provided, otherwise exponential backoff
-    const ra = Number(res.headers.get("retry-after"));
-    const wait = Number.isFinite(ra) && ra > 0 ? ra * 1000 : delay + Math.floor(Math.random() * 300);
-    await new Promise((r) => setTimeout(r, wait));
-    delay = Math.min(delay * 2, 8000);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), AI_FETCH_TIMEOUT_MS);
+    try {
+      const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: ctrl.signal,
+      });
+      clearTimeout(timer);
+      if (res.status !== 429 || attempt === AI_MAX_RETRIES) return res;
+      const ra = Number(res.headers.get("retry-after"));
+      const wait = Number.isFinite(ra) && ra > 0 ? ra * 1000 : delay + Math.floor(Math.random() * 500);
+      await new Promise((r) => setTimeout(r, wait));
+      delay = Math.min(delay * 2, 20000);
+    } catch (e) {
+      clearTimeout(timer);
+      if (attempt === AI_MAX_RETRIES) throw e;
+      await new Promise((r) => setTimeout(r, delay));
+      delay = Math.min(delay * 2, 20000);
+    }
   }
-  // Unreachable, but satisfies TS
   return new Response("rate limited", { status: 429 });
 }
 
