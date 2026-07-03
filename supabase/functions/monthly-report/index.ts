@@ -153,19 +153,31 @@ Produis un rapport structuré en JSON avec :
 
 Réponds UNIQUEMENT avec le JSON valide, sans markdown.`;
 
-    async function callAi(body: any, retries = 4): Promise<Response> {
-      let delay = 800;
+    async function callAi(body: any, retries = 8): Promise<Response> {
+      let delay = 1000;
+      const TIMEOUT_MS = 120000;
       for (let i = 0; i <= retries; i++) {
-        const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
-        if (r.status !== 429 || i === retries) return r;
-        const ra = Number(r.headers.get("retry-after"));
-        const wait = Number.isFinite(ra) && ra > 0 ? ra * 1000 : delay + Math.floor(Math.random() * 300);
-        await new Promise((res) => setTimeout(res, wait));
-        delay = Math.min(delay * 2, 8000);
+        const ctrl = new AbortController();
+        const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+        try {
+          const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+            signal: ctrl.signal,
+          });
+          clearTimeout(timer);
+          if (r.status !== 429 || i === retries) return r;
+          const ra = Number(r.headers.get("retry-after"));
+          const wait = Number.isFinite(ra) && ra > 0 ? ra * 1000 : delay + Math.floor(Math.random() * 500);
+          await new Promise((res) => setTimeout(res, wait));
+          delay = Math.min(delay * 2, 20000);
+        } catch (e) {
+          clearTimeout(timer);
+          if (i === retries) throw e;
+          await new Promise((res) => setTimeout(res, delay));
+          delay = Math.min(delay * 2, 20000);
+        }
       }
       return new Response("rate limited", { status: 429 });
     }
